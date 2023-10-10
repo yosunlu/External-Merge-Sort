@@ -17,8 +17,10 @@ public:
 	FilterIterator (FilterPlan const * const plan);
 	~FilterIterator ();
 	bool next ();
+	DataRecord* getCurrentRecord();
 private:
 	FilterPlan const * const _plan;
 	Iterator * const _input;
 	RowCount _consumed, _produced;
+	DataRecord* _currentRecord; 
 }; // class FilterIterator

@@ -48,3 +48,7 @@ bool FilterIterator::next ()
 	++ _produced;
 	return true;
 } // FilterIterator::next
+
+DataRecord* FilterIterator::getCurrentRecord() {
+    return _currentRecord;
+}

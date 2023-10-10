@@ -1,4 +1,6 @@
 #include "Scan.h"
+#include <time.h> 
+#include <cstdlib>
 
 ScanPlan::ScanPlan (RowCount const count) : _count (count)
 {
@@ -37,6 +39,16 @@ bool ScanIterator::next ()
 	if (_count >= _plan->_count)
 		return false;
 
+	int x = 1+ (rand() % 10000);
+	int y = 1+ (rand() % 10000);
+	int z = 1+ (rand() % 10000);
+	_currentRecord = new DataRecord(x, y, z);
+	traceprintf("x: %d ,y: %d, z: %d\n",x,y,z);
+
 	++ _count;
 	return true;
 } // ScanIterator::next
+
+DataRecord* ScanIterator::getCurrentRecord() {
+    return _currentRecord;
+}

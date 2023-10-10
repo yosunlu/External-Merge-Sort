@@ -17,8 +17,10 @@ public:
 	SortIterator (SortPlan const * const plan);
 	~SortIterator ();
 	bool next ();
+	DataRecord* getCurrentRecord();
 private:
 	SortPlan const * const _plan;
 	Iterator * const _input;
 	RowCount _consumed, _produced;
+	DataRecord* _currentRecord; 
 }; // class SortIterator
