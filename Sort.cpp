@@ -30,7 +30,7 @@ int part(DataRecord records[], int lower, int upper)
 	int left = lower;
 	for (int i = lower; i < upper; i++)
 	{
-		if (records[i].getIncl() < records[upper].getIncl())
+		if (std::strcmp(records[i].getIncl(), records[upper].getIncl()) < 0)
 		{
 			swap(records[i], records[left++]);
 		}
@@ -66,7 +66,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 	for (int i = 0; i < 100; i++)
 	{
 		DataRecord *record = &records[i];
-		traceprintf("for loop : incl: %d ,mem: %d, mgmt: %d\n", record->getIncl(), record->getMem(), record->getMgmt());
+		traceprintf("for loop : incl: %s ,mem: %s, mgmt: %s\n", record->getIncl(), record->getMem(), record->getMgmt());
 	}
 
 	qs(records, 0, 99);
@@ -74,7 +74,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 	for (int i = 0; i < 100; i++)
 	{
 		DataRecord *record = &records[i];
-		traceprintf("for loop after sort: incl: %d ,mem: %d, mgmt: %d\n", record->getIncl(), record->getMem(), record->getMgmt());
+		traceprintf("for loop after sort: incl: %s ,mem: %s, mgmt: %s\n", record->getIncl(), record->getMem(), record->getMgmt());
 	}
 
 	delete _input;

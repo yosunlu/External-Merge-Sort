@@ -38,14 +38,18 @@ bool ScanIterator::next ()
 
 	if (_count >= _plan->_count)
 		return false;
+	
+	char* arr = new char[100];
+	for (int i = 0; i < 99; ++i) {
+		arr[i] = std::rand() % 2 == 0 ? 'A' + std::rand() % 26 : 'a' + std::rand() % 26;
+	}
+	arr[100] = '\0';
 
-	int x = 1+ (rand() % 10000);
-	int y = 1+ (rand() % 10000);
-	int z = 1+ (rand() % 10000);
-	_currentRecord = new DataRecord(x, y, z);
-	traceprintf("x: %d ,y: %d, z: %d\n",x,y,z);
+	_currentRecord = new DataRecord(arr, arr, arr);
+	traceprintf("x: %s ,y: %s, z: %s\n", arr, arr, arr);
 
 	++ _count;
+	delete[] arr;
 	return true;
 } // ScanIterator::next
 

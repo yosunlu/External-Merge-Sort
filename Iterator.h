@@ -1,5 +1,7 @@
 #pragma once
 
+#include <iostream>
+#include <cstring>
 #include "defs.h"
 
 typedef uint64_t RowCount;
@@ -7,14 +9,24 @@ typedef uint64_t RowCount;
 class DataRecord {
 public:
 	DataRecord(){}
-    DataRecord(int incl, int mem, int mgmt) : _incl(incl), _mem(mem), _mgmt(mgmt) {}
-    int getIncl() const { return _incl; }
-    int getMem() const { return _mem; }
-	int getMgmt() const { return _mgmt; }
+    DataRecord(const char incl[100], const char mem[100], const char mgmt[100]) {
+		// Copy the provided char array to _incl
+        std::strncpy(_incl, incl, sizeof(_incl) - 1);
+        _incl[sizeof(_incl) - 1] = '\0';  // Ensure null-termination
+
+		std::strncpy(_mem, mem, sizeof(_mem) - 1);
+        _mem[sizeof(_mem) - 1] = '\0';
+
+		std::strncpy(_mgmt, mgmt, sizeof(_mgmt) - 1);
+        _mgmt[sizeof(_mgmt) - 1] = '\0';
+	}
+    const char* getIncl() const { return _incl; }
+    const char* getMem() const { return _mem; }
+	const char* getMgmt() const { return _mgmt; }
 private:
-    int _incl;
-    int _mem;
-	int _mgmt;
+    char _incl[100];
+	char _mem[100];
+	char _mgmt[100];
 };
 
 class Plan
