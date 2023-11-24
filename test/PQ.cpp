@@ -62,8 +62,6 @@ void PQ::parent(Index &slot) const { slot /= 2; }
 
 /**
  * Defines early_fence (negative infinity) as INT_MIN.
- * ???
- * index 可刪
  */
 PQ::Key PQ::early_fence() const { return Key(INT_MIN); }
 
@@ -73,7 +71,7 @@ PQ::Key PQ::early_fence() const { return Key(INT_MIN); }
 PQ::Key PQ::late_fence() const { return Key(INT_MAX); }
 
 /**
- * 正offset
+ * @return the index of the value where it was compared with
  */
 PQ::Offset offsetFromKey(PQ::Key key)
 {
