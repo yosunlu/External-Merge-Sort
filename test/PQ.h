@@ -17,8 +17,8 @@ public:
     void parent(Index &slot) const;
     void leaf(Index const index, Index &slot, Level &level) const;
     void parent(Index &slot, Level &level) const;
-    Key early_fence(Index const index) const;
-    Key late_fence(Index const index) const;
+    Key early_fence() const;
+    Key late_fence() const;
 
     bool empty();
     Index poptop(bool const invalidate);
