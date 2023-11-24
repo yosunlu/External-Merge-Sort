@@ -3,8 +3,22 @@
 #include <limits.h>
 
 using namespace std;
-int const sizeOfColumn = 100;
+int const sizeOfColumn = 100; // the size of the value being compared (e.g. 3 for 907)
+
+// representing 8 leaves, each a string with size sizeOfColumn
 char data[8][sizeOfColumn];
+
+/**
+ * Constructor for the PQ (Priority Queue) class.
+ * Initializes a new priority queue with a specified height.
+ *
+ * The height determines the initial capacity of the queue,
+ * as the internal heap structure is allocated space for
+ * 2^height elements (1 << height).
+ *
+ * @param h The height of the priority queue, which dictates
+ *          the size of the internal heap.
+ */
 PQ::PQ(Level const h)
     : height(h), heap(new Node[1 << h])
 {
@@ -16,25 +30,79 @@ PQ::~PQ()
     // Perform any necessary cleanup
 }
 
+/**
+ * Constructor for the nested class Node within PQ.
+ * @param i The index of the leaf.
+ * @param k The key of the value to be sorted (in our case the offset-value code).
+ */
 PQ::Node::Node(Index i, Key k) : index(i), key(k) {}
 
+/**
+ * Capacity is calculated as 2 ^ height.
+ * @return capacity of the the heap
+ */
 PQ::Index PQ::capacity() const { return Index(1 << height); }
+
+/**
+ * root is the 0th index of the heap
+ * @return 0 casted as Index
+ */
 PQ::Index PQ::root() const { return Index(0); }
+
+/**
+ * Return (modify value of slot) the index of the heap (loser tree) that represents the leaf
+ */
 void PQ::leaf(Index const index, Index &slot) const
 {
     slot = capacity() + index;
 }
-void PQ::parent(Index &slot) const { slot /= 2; }
-PQ::Key PQ::early_fence(Index const index) const { return Key(INT_MIN); }
-PQ::Key PQ::late_fence(Index const index) const { return Key(INT_MAX); }
 
+/**
+ * Return (modify value of slot) the index of the heap (loser tree) that represent the slot's parent
+ */
+void PQ::parent(Index &slot) const { slot /= 2; }
+
+/**
+ * Defines early_fence (negative infinity) as INT_MIN.
+ */
+PQ::Key PQ::early_fence() const { return Key(INT_MIN); }
+
+/**
+ * Defines late_fence (positive infinity) as INT_MAX.
+ */
+PQ::Key PQ::late_fence() const { return Key(INT_MAX); }
+
+/**
+ * @return the index of the value where it was compared with
+ */
 PQ::Offset offsetFromKey(PQ::Key key)
 {
     // Key is ovc
     int off = sizeOfColumn - (key / 100);
-    return PQ::Offset(off);
+    return PQ::Offset(off); // cast off to Offset
 }
 
+/**
+ * Calculates the offset-value coding.
+ * offset: the index where the two values start to differentiate.
+ * Example 1: 908 vs early fence
+ * offset: 0 (0th index of 908 is where 908 and early fence differentiate)
+ * arityoff: 3 - 0 (size of 908 - 0)
+ * 0th of 908 is 9
+ * ovc = 3 * 100 + 9 = 309
+ *
+ * Example 2: 170 vs early fence
+ * offset: 0 (0th index of 170 is where 170 and early fence differentiate)
+ * arityoff: 3 - 0
+ * 0th of 170 is 1
+ * ovc = 3 * 100 + 1 = 301
+ *
+ * We're using loser-tournament tree, so 309 will lose and stay at the node.
+ *
+ * @param index the index of the leaf
+ * @param offset the index where the two value differentiate
+ * @return the offset-value coding for the leaf
+ */
 PQ::Key keyFromOffset(PQ::Index index, PQ::Offset offset)
 {
     // calculate the ovc
@@ -42,6 +110,10 @@ PQ::Key keyFromOffset(PQ::Index index, PQ::Offset offset)
     return PQ::Key((arityoff * 100) + (::data[index][offset] - '0'));
 }
 
+/**
+ * Compares two leaves with given 2 indexes of leaves
+ * @param offset the index of the string that we we start comparing
+ */
 bool lessCheck(PQ::Index const left, PQ::Index const right, PQ::Offset &offset)
 {
     while (++offset < sizeOfColumn)
@@ -50,26 +122,50 @@ bool lessCheck(PQ::Index const left, PQ::Index const right, PQ::Offset &offset)
     return false;
 }
 
+/**
+ * Compares this Node vs other node based on ovc(key)
+ * @param other the node being compared with
+ * @param full false (won't be used in our implementation)
+ */
 bool PQ::Node::less(Node &other, bool const full)
 {
     Offset offset;
-    if (full)
+    if (full) // full will always be false in our implementation
         offset = Offset(-1);
     else if (key != other.key)
-        return (key < other.key);
+        return (key < other.key); // compare the two ovc
     else if (key == -1 && other.key == -1)
+        // Nodes are intialized with -1; we shouldn't be comparing two -1
         return false;
     else if (key == INT_MAX && other.key == INT_MAX)
         return false;
     else
+        // key == other.key
+        // e.g. both ovc of 087 and 092 vs early fence is 300
+        // offset will be modified to 1 (index 1 of 092)
         offset = offsetFromKey(key);
+
+    // start checking from index 1st of 2 values 087 and 092
     bool const isLess = lessCheck(index, other.index, offset);
+
+    // 087 isLess than 092, loser will be 092
     Node &loser = (isLess ? other : *this);
+
+    // assign the new key
     loser.key = keyFromOffset(loser.index, offset);
+
     // std::cout << "loser index:" << loser.index << ", key:" << loser.key << std::endl;
     return isLess;
 }
 
+/**
+ * Given the index of the leaf and its key (ovc), create a new node and pass it into the tree.
+ * Pass the node in to the tree, and determine the new winner (last candidate)
+ *
+ * @param index index of the leaf
+ * @param key ovc of the new node
+ * @param full_comp will always be false
+ */
 void PQ::pass(Index const index, Key const key, bool full_comp)
 {
     Node candidate(index, key);
@@ -95,35 +191,47 @@ void PQ::pass(Index const index, Key const key, bool full_comp)
     }
 }
 
-PQ::Index PQ::poptop(bool const invalidate)
-{
-    if (empty())
-        return -1;
-    if (invalidate)
-        heap[root()].key = early_fence(heap[root()].index);
-    return heap[root()].index;
-}
-
+/**
+ * Checks if the heap is empty
+ */
 bool PQ::empty()
 {
     Node const &hr = heap[root()];
-    while (hr.key == early_fence(hr.index))
-        pass(hr.index, late_fence(hr.index), false);
-    return hr.key == late_fence(hr.index);
+    while (hr.key == early_fence())
+        pass(hr.index, late_fence(), false);
+    return hr.key == late_fence();
 }
+
+/**
+ * Calls PQ::pass that creates a node with given index of the leaf and its value's ovc.
+ * Pushes the node to the correct position.
+ *
+ * @param index index of the leaf
+ * @param key the ovc of the value
+ */
 
 void PQ::push(Index const index, Key const key)
 {
     pass(index, key, false);
 }
 
-PQ::Index PQ::top() { return poptop(false); }
+PQ::Index PQ::poptop(bool const invalidate)
+{
+    if (empty())
+        return -1;
+    if (invalidate)
+        heap[root()].key = early_fence();
+    return heap[root()].index;
+}
+
 PQ::Index PQ::pop() { return poptop(true); }
+PQ::Index PQ::top() { return poptop(false); }
 
 int main()
 {
-    int const sizeOfBucket = 3;
-    int const numOfBucket = 8;
+    int const sizeOfBucket = 3; // each mini run has 3 values
+    int const numOfBucket = 8;  // 8 leaves
+    // 8 leaves, 3 values for each run, each value is of size 101 (including null terminator)
     char buckets[numOfBucket][sizeOfBucket][sizeOfColumn + 1] = {
         {"076o27ml575352r58sb37ot081niktr55r4jnv1415jht5vtfoe8zyz896vq08x0vd6548pjwyr9u7f05z5334n711k676i8ov1",
          "po9m2j6b4687eo3p1gwqgm8e1d8uy0e1chilb28lg8j015471ol3578b19s5089u3y40ez54p3664acfk3rup207922qbhmxmp8",
@@ -150,9 +258,12 @@ int main()
          "2zg1zf320t782c3sm8q8zg927av9700qo9g3204j387e72wrhice50ur86txp2levl0g5qz7w22vgqu59dl9f5991m5z6wpy038",
          "alt0lu6elr0u5246ad5hf3jn85d9ch6x37jny6ja1thko04u990b7607ub06dbyl1ls1o5zj18z2i5o10pnbf6ot2022x3dz8hg"}};
 
+    // a hash table to store the how many values are left (or pointer) in each bucket
     int hashtable[numOfBucket] = {0};
+    // TODO: output to a file instead of array
     char output[numOfBucket * sizeOfBucket][sizeOfColumn + 1];
 
+    // copy the first value of each run to leaf
     for (int i = 0; i < numOfBucket; ++i)
     {
         std::strcpy(::data[i], buckets[i][0]);
@@ -163,18 +274,22 @@ int main()
         std::cout << "data[" << i << "]: " << ::data[i] << std::endl;
     }
 
-    int copyNum = numOfBucket;
+    int copyNum = numOfBucket; // 8
     int targetlevel = 0;
+
+    // calculate the height of the tree
     while (copyNum >>= 1)
-        ++targetlevel;
-    // capacity 2^targetlevel
+        ++targetlevel; // capacity = 2 ^ targetlevel = 2 ^ 3 = 8
+
+    // initialize the tournament tree-of-loser implemented with PQ
     PQ priorityQueue(targetlevel);
 
-    // calculate the ovc
-    for (int i = 0; i < numOfBucket; ++i)
+    // intialize the tree with the initial leaves
+    for (int i = 0; i < numOfBucket; ++i) // numOfBucket = 8
     {
-        // size 3 - 0 = 3
+        // comparing with early fence, so offset is 0th (the 0 in data[i][0])
         int intValue = ::data[i][0] - '0';
+        // PQ::push(index of the leaf, ovc of the value)
         priorityQueue.push(i, (sizeOfColumn - 0) * 100 + intValue);
         // std::cout << "intValue[" << i << "]: " << intValue << std::endl;
     }
@@ -182,21 +297,36 @@ int main()
     std::cout << "===============================" << std::endl;
     int count = 0;
 
+    // count < total number of values to be merge-sorted
     while (count < numOfBucket * sizeOfBucket)
     {
+        // pop the root of the tree
+        // assign index of the leaf that the root originated from
         int idx = priorityQueue.pop();
         if (idx == -1)
         {
             break;
         }
+        // copy the value of the leaf (was the root) to output
         std::strcpy(output[count], ::data[idx]);
+
         if (count == numOfBucket * sizeOfBucket - 1)
             break;
+
+        // check if the current bucket has value left
+        // each bucket is initialized with 0, and all of them have been pushed to tree,
+        // so we can only use sizeOfBucket - 1
+        // E.g. 3 values in each bucket: the first value has already been pushed,
+        // we can only use 2
         if (hashtable[idx] < sizeOfBucket - 1)
         {
+
             char preVal[sizeOfColumn + 1];
+            // copy the value that was popped to preVal
             std::strcpy(preVal, ::data[idx]);
+            // increment the current bucket
             hashtable[idx]++;
+            // update the leaf with the next value in bucket
             std::strcpy(::data[idx], buckets[idx][hashtable[idx]]);
             char curVal[sizeOfColumn + 1];
             std::strcpy(curVal, ::data[idx]);
@@ -214,16 +344,18 @@ int main()
                     break;
                 }
             }
+            // two values of the same bucket are equal
             if (offset == -1)
             {
                 offset = sizeOfColumn;
             }
-
+            // if equal, the new value should be pushed right away to the output
             if (offset == sizeOfColumn)
             {
                 priorityQueue.push(idx, 0);
             }
             else
+            // ovc for the new value should be calculated based on old ovc
             {
                 int arityOffset = sizeOfColumn - offset;
                 int intValue = curVal[offset] - '0';
@@ -234,7 +366,7 @@ int main()
         }
         else
         {
-            priorityQueue.push(idx, priorityQueue.late_fence(idx));
+            priorityQueue.push(idx, priorityQueue.late_fence());
         }
 
         count++;
