@@ -4,7 +4,9 @@
 
 using namespace std;
 int const sizeOfColumn = 100; // the size of the value being compared (e.g. 3 for 907)
-char data[8][sizeOfColumn];   // index of the leaf nodes; representing 8 buckets
+
+// representing 8 leaves, each a string with size sizeOfColumn
+char data[8][sizeOfColumn];
 
 /**
  * Constructor for the PQ (Priority Queue) class.
@@ -110,7 +112,7 @@ PQ::Key keyFromOffset(PQ::Index index, PQ::Offset offset)
 
 /**
  * Compares two leaves with given 2 indexes of leaves
- * @param offset
+ * @param offset the index of the string that we we start comparing
  */
 bool lessCheck(PQ::Index const left, PQ::Index const right, PQ::Offset &offset)
 {
@@ -142,12 +144,16 @@ bool PQ::Node::less(Node &other, bool const full)
         // e.g. both ovc of 087 and 092 vs early fence is 300
         // offset will be modified to 1 (index 1 of 092)
         offset = offsetFromKey(key);
+
     // start checking from index 1st of 2 values 087 and 092
     bool const isLess = lessCheck(index, other.index, offset);
+
     // 087 isLess than 092, loser will be 092
     Node &loser = (isLess ? other : *this);
+
     // assign the new key
     loser.key = keyFromOffset(loser.index, offset);
+
     // std::cout << "loser index:" << loser.index << ", key:" << loser.key << std::endl;
     return isLess;
 }
@@ -158,7 +164,7 @@ bool PQ::Node::less(Node &other, bool const full)
  *
  * @param index index of the leaf
  * @param key ovc of the new node
- * @param full_comp ???
+ * @param full_comp will always be false
  */
 void PQ::pass(Index const index, Key const key, bool full_comp)
 {
@@ -191,7 +197,7 @@ void PQ::pass(Index const index, Key const key, bool full_comp)
 bool PQ::empty()
 {
     Node const &hr = heap[root()];
-    while (hr.key == early_fence()) // ???
+    while (hr.key == early_fence())
         pass(hr.index, late_fence(), false);
     return hr.key == late_fence();
 }
