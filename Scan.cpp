@@ -41,7 +41,7 @@ bool ScanIterator::next ()
 	
 	char* arr = new char[100];
 	for (int i = 0; i < 99; ++i) {
-		arr[i] = std::rand() % 2 == 0 ? 'A' + std::rand() % 26 : 'a' + std::rand() % 26;
+		arr[i] = std::rand() % 2 == 0 ? 'a' + std::rand() % 26 : '0' + std::rand() % 10;
 	}
 	arr[100] = '\0';
 
