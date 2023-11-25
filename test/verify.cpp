@@ -49,7 +49,7 @@ int main()
 
     inputFile.close();
 
-    std::ifstream outputFile("output.txt", std::ios::binary);
+    std::ifstream outputFile("input/output.txt", std::ios::binary);
 
     if (!outputFile.is_open())
     {
@@ -74,7 +74,8 @@ int main()
         std::strncpy(incl, row, 332);
         incl[332] = '\0';
 
-        if(i != 0 && std::strcmp(prev, incl) > 0) {
+        if (i != 0 && std::strcmp(prev, incl) > 0)
+        {
             isOrdered = false;
         }
 
@@ -94,16 +95,22 @@ int main()
         std::cout << "Input and output files equal in the content of records." << std::endl;
     }
 
-    if(output_summary.rec_count.hi8 != input_summary.rec_count.hi8 ||
-        output_summary.rec_count.lo8 != input_summary.rec_count.lo8) {
+    if (output_summary.rec_count.hi8 != input_summary.rec_count.hi8 ||
+        output_summary.rec_count.lo8 != input_summary.rec_count.lo8)
+    {
         std::cerr << "Input and output files differ in the number of records." << std::endl;
-    } else {
+    }
+    else
+    {
         std::cout << "Input and output files equal in the number of records." << std::endl;
     }
 
-    if(isOrdered) {
+    if (isOrdered)
+    {
         std::cout << "output file is ordered." << std::endl;
-    } else {
+    }
+    else
+    {
         std::cerr << "output file is unordered." << std::endl;
     }
 }

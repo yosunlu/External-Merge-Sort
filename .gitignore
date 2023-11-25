@@ -30,4 +30,6 @@
 *.exe
 *.out
 *.app
-./test/*.exe
+
+# Text files
+*.txt
