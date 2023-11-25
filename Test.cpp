@@ -80,6 +80,14 @@ int main(int argc, char *argv[])
 	// new SortPlan ( new FilterPlan ( new ScanPlan (7) ) );
 
 	Iterator *const it = plan->init();
+	// SortPlan has private attribute _input, which is intialized to a ScanPlan.
+	// In SortPlan's init(), a SortIterator(this) is constructed and returned.
+	// In SortIterator's constructor, the object itself is passed in as argument.
+	// The object itself's private attribute _input is used to initialized SortIterator's private attributes.
+	// In the constructor, the object's _input (a ScanPlan) is used to call _input->init().
+	// ScanPlan's init() will return and construct a ScanIterator(this), where input.txt will be read.
+
+	// run (defined in iterator.cpp) will call SortIterator::next() in a while loop
 	it->run();
 	delete it;
 

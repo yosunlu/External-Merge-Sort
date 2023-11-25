@@ -19,10 +19,11 @@ Iterator *SortPlan::init() const
 	return new SortIterator(this);
 } // SortPlan::init
 
-void swap(DataRecord& a, DataRecord& b) {
-    DataRecord temp = a;
-    a = b;
-    b = temp;
+void swap(DataRecord &a, DataRecord &b)
+{
+	DataRecord temp = a;
+	a = b;
+	b = temp;
 }
 
 int part(DataRecord records[], int lower, int upper)
@@ -50,10 +51,11 @@ void qs(DataRecord records[], int lower, int upper)
 }
 
 SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(plan->_input->init()),
-														 _consumed(0), _produced(0)
+														 _consumed(0), _produced(0), inputFile("input/input.txt")
 {
 	TRACE(true);
 	DataRecord *records = new DataRecord[100]();
+
 	int i = 0;
 	while (_input->next())
 	{
@@ -66,7 +68,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 	for (int i = 0; i < 100; i++)
 	{
 		DataRecord *record = &records[i];
-		traceprintf("for loop : incl: %s ,mem: %s, mgmt: %s\n", record->getIncl(), record->getMem(), record->getMgmt());
+		// traceprintf("for loop : incl: %s ,mem: %s, mgmt: %s\n", record->getIncl(), record->getMem(), record->getMgmt());
 	}
 
 	qs(records, 0, 99);
@@ -74,7 +76,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 	for (int i = 0; i < 100; i++)
 	{
 		DataRecord *record = &records[i];
-		traceprintf("for loop after sort: incl: %s ,mem: %s, mgmt: %s\n", record->getIncl(), record->getMem(), record->getMgmt());
+		// traceprintf("for loop after sort: incl: %s ,mem: %s, mgmt: %s\n", record->getIncl(), record->getMem(), record->getMgmt());
 	}
 
 	delete _input;

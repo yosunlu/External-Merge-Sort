@@ -3,10 +3,12 @@
 class ScanPlan : public Plan
 {
 	friend class ScanIterator;
+
 public:
-	ScanPlan (RowCount const count);
-	~ScanPlan ();
-	Iterator * init () const;
+	ScanPlan(RowCount const count);
+	~ScanPlan();
+	Iterator *init() const;
+
 private:
 	RowCount const _count;
 }; // class ScanPlan
@@ -14,12 +16,14 @@ private:
 class ScanIterator : public Iterator
 {
 public:
-	ScanIterator (ScanPlan const * const plan);
-	~ScanIterator ();
-	bool next ();
-	DataRecord* getCurrentRecord();
+	ScanIterator(ScanPlan const *const plan);
+	~ScanIterator();
+	bool next();
+	DataRecord *getCurrentRecord();
+
 private:
-	ScanPlan const * const _plan;
+	ScanPlan const *const _plan;
 	RowCount _count;
-	DataRecord* _currentRecord; 
+	DataRecord *_currentRecord;
+
 }; // class ScanIterator
