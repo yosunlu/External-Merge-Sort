@@ -81,7 +81,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 	DataRecord *records = new DataRecord[_consumed]();
 	int i = 0;
 	int j = _consumed;
-	while (--j)
+	while (j--)
 	{
 		char row[REC_SIZE];
 		_inputFile->read(row, sizeof(row));
@@ -100,6 +100,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		// Creating a DataRecord
 		DataRecord record(incl, mem, mgmt);
 		records[i++] = record;
+
 		// Outputting the content
 		// std::cout << "incl: " << record.getIncl() << "\n";
 		// std::cout << "mem: " << record.getMem() << "\n";
@@ -168,7 +169,7 @@ SortIterator::~SortIterator()
 
 bool SortIterator::next()
 {
-	TRACE(true);
+	// TRACE(true);
 
 	if (_produced >= _consumed)
 		return false;

@@ -78,9 +78,9 @@ int main(int argc, char *argv[])
 	}
 
 	// create records that will be saved in the input file
-	genDataRecords(numOfRecord); // assuming 100MB data generated (100,000 records)
+	genDataRecords(numOfRecord);
 	int numBatch = numOfRecord / 1000;
-	int batch = numOfRecord / numBatch; // batch = 1000
+	int batch = numOfRecord / numBatch;
 
 	std::ifstream inputFile("input/input.txt", std::ios::binary);
 
@@ -108,6 +108,7 @@ int main(int argc, char *argv[])
 
 	for (int i = 0; i < numBatch; i++)
 	{
+
 		DataRecord *inner = dataRecords->at(i);
 		for (int j = 0; j < 1000; j++)
 		{
@@ -118,6 +119,17 @@ int main(int argc, char *argv[])
 			outputFile.write(inner[j].getMgmt(), 332);
 			outputFile.write("\r\n", 2);
 		}
+
+		// DataRecord *inner = dataRecords->at(i);
+		// for (int j = 0; j < 1000; j++)
+		// {
+		// 	outputFile.write(inner[0].getIncl(), 332);
+		// 	outputFile.write(" ", 1);
+		// 	outputFile.write(inner[0].getMem(), 332);
+		// 	outputFile.write(" ", 1);
+		// 	outputFile.write(inner[0].getMgmt(), 332);
+		// 	outputFile.write("\r\n", 2);
+		// }
 	}
 	outputFile.close();
 
