@@ -2,6 +2,7 @@
 #include <time.h> 
 #include <cstdlib>
 
+#define REC_SIZE 1000
 ScanPlan::ScanPlan (RowCount const count) : _count (count)
 {
 	TRACE (true);
@@ -39,17 +40,18 @@ bool ScanIterator::next ()
 	if (_count >= _plan->_count)
 		return false;
 	
-	char* arr = new char[100];
-	for (int i = 0; i < 99; ++i) {
-		arr[i] = std::rand() % 2 == 0 ? 'a' + std::rand() % 26 : '0' + std::rand() % 10;
-	}
-	arr[100] = '\0';
+	// char* arr = new char[100];
+	// for (int i = 0; i < 99; ++i) {
+	// 	arr[i] = std::rand() % 2 == 0 ? 'a' + std::rand() % 26 : '0' + std::rand() % 10;
+	// }
+	// arr[100] = '\0';
 
-	_currentRecord = new DataRecord(arr, arr, arr);
-	traceprintf("x: %s ,y: %s, z: %s\n", arr, arr, arr);
+	// _currentRecord = new DataRecord(arr, arr, arr);
+	// traceprintf("x: %s ,y: %s, z: %s\n", arr, arr, arr);
+
 
 	++ _count;
-	delete[] arr;
+	// delete[] arr;
 	return true;
 } // ScanIterator::next
 
