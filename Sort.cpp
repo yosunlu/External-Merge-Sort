@@ -6,7 +6,7 @@
 
 #define REC_SIZE 1000
 
-SortPlan::SortPlan(Plan *const input) : _input(input)
+SortPlan::SortPlan(Plan *const input, SortState state) : _input(input), _state(state)
 {
 	TRACE(true);
 } // SortPlan::SortPlan

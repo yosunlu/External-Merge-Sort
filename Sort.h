@@ -1,16 +1,17 @@
 #include "Iterator.h"
+#include "SortState.h"
 
 class SortPlan : public Plan
 {
 	friend class SortIterator;
 
 public:
-	SortPlan(Plan *const input);
-	~SortPlan();
-	Iterator *init() const;
-
+	SortPlan (Plan * const input, SortState state);
+	~SortPlan ();
+	Iterator * init () const;
 private:
-	Plan *const _input;
+	Plan * const _input;
+	SortState _state;
 }; // class SortPlan
 
 class SortIterator : public Iterator

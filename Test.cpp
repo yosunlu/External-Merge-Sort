@@ -3,6 +3,7 @@
 #include "Filter.h"
 #include "Sort.h"
 #include "gen.h"
+#include "SortState.h"
 #include <iostream>
 #include <cstdlib>
 #include <unistd.h>
@@ -77,7 +78,7 @@ int main(int argc, char *argv[])
 
 	// create records that will be saved in the input file
 	genDataRecords(numOfRecord);
-	Plan *const plan = new SortPlan(new ScanPlan(numOfRecord));
+	Plan *const plan = new SortPlan(new ScanPlan(numOfRecord), RUN_PHASE_1);
 	// Plan * const plan = new FilterPlan ( new ScanPlan (7) );
 	// new SortPlan ( new FilterPlan ( new ScanPlan (7) ) );
 

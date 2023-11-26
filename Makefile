@@ -34,7 +34,7 @@ trace : Test.exe Makefile
 	@size -t Test.exe $(OBJS) | sort -r >> trace
 
 $(OBJS) : Makefile defs.h
-Test.o : Iterator.h Scan.h Filter.h Sort.h gen.h
+Test.o : Iterator.h Scan.h Filter.h Sort.h gen.h SortState.h
 Iterator.o Scan.o Filter.o Sort.o : Iterator.h
 Scan.o : Scan.h
 Filter.o : Filter.h
