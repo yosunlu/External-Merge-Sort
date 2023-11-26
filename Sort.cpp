@@ -79,13 +79,13 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 	// }
 
 	DataRecord *records = new DataRecord[_consumed]();
-	int i = _consumed;
-	while (--i)
+	int i = 0;
+	int j = _consumed;
+	while (--j)
 	{
 		char row[REC_SIZE];
 		_inputFile->read(row, sizeof(row));
 		row[sizeof(row) - 2] = '\0'; // last 2 bytes are newline characters
-
 		// Extracting data from the row
 		char incl[333], mem[333], mgmt[333];
 		std::strncpy(incl, row, 332);
@@ -114,9 +114,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 	// 	DataRecord *record = &records[i];
 	// 	traceprintf("for loop : incl: %s ,mem: %s, mgmt: %s\n", record->getIncl(), record->getMem(), record->getMgmt());
 	// }
-
 	qs(records, 0, _consumed - 1);
-
 	dataRecords->push_back(records);
 
 	// for (int i = 0; i < _consumed; i++)

@@ -34,9 +34,9 @@ ScanIterator::~ScanIterator()
 
 bool ScanIterator::next()
 {
-	TRACE(true);
+	// TRACE(true);
 
-	traceprintf("%llu...........", _plan->_count);
+	// traceprintf("%llu...........", _plan->_count);
 
 	if (_count >= _plan->_count)
 		return false;

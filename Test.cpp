@@ -106,15 +106,16 @@ int main(int argc, char *argv[])
 		std::cerr << "Error opening output file." << std::endl;
 	}
 
-	for (int i = 0; i < 100; i++)
+	for (int i = 0; i < numBatch; i++)
 	{
+		DataRecord *inner = dataRecords->at(i);
 		for (int j = 0; j < 1000; j++)
 		{
-			outputFile.write(dataRecords[i][j]->getIncl(), 332);
+			outputFile.write(inner[j].getIncl(), 332);
 			outputFile.write(" ", 1);
-			outputFile.write(dataRecords[i][j]->getMem(), 332);
+			outputFile.write(inner[j].getMem(), 332);
 			outputFile.write(" ", 1);
-			outputFile.write(dataRecords[i][j]->getMgmt(), 332);
+			outputFile.write(inner[j].getMgmt(), 332);
 			outputFile.write("\r\n", 2);
 		}
 	}
