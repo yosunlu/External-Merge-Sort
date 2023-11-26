@@ -1,8 +1,8 @@
+#include <fstream>
 #include "Sort.h"
 #include "Scan.h"
 #include <sys/types.h>
 #include <sys/sysctl.h>
-#include <fstream>
 
 #define REC_SIZE 1000
 
@@ -55,7 +55,7 @@ void qs(DataRecord records[], int lower, int upper)
 }
 
 SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(plan->_input->init()),
-														 _consumed(0), _produced(0), inputFile("input/input.txt")
+														 _consumed(0), _produced(0)
 {
 	TRACE(true);
 	// int i = 0;
