@@ -129,7 +129,9 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		// Resize the leaf vector
 		// numOfBucket = buckets;
 		// leaf.resize(numOfBucket, std::vector<char>(sizeOfColumn));
-		int *hashtable = new int[buckets](); // initializes to 0
+
+		int *hashtable = new int[buckets](); // initializes to 0; stores pointer to the next record to be pushed for the leaf
+
 		// buckets from Dram
 		for (int i = 0; i < buckets; ++i)
 		{
@@ -175,8 +177,11 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 			}
 			// std::strcpy(output[count], ::data[idx]);
 			// std::strcpy(output[count], ::leaf[idx].data());
+
 			// write to output file
+			// inner is a pointer to 1000 records, each 1kb
 			DataRecord *inner = dataRecords->at(idx);
+			// idx tells which leaf; hashtable[idx] returns the next pointer to the record
 			DataRecord output_record = inner[hashtable[idx]];
 
 			outputFile.write(output_record.getIncl(), 332);
@@ -188,22 +193,25 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 
 			if (count == buckets * sizeOfBucket - 1)
 				break;
-			if (hashtable[idx] < sizeOfBucket - 1)
+			if (hashtable[idx] < sizeOfBucket - 1) // check if there are record left in the bucket
 			{
 				char preVal[sizeOfColumn + 1];
-				// std::strcpy(preVal, ::data[idx]);
-				std::strcpy(preVal, ::leaf[idx].data());
-				hashtable[idx]++;
-				// std::strcpy(::data[idx], buckets[idx][hashtable[idx]]);
-				DataRecord *inner_cur = dataRecords->at(idx);
-				DataRecord record = inner_cur[hashtable[idx]];
 
-				std::strcpy(::leaf[idx].data(), record.getIncl());
+				// assign the data outputted, so preVal can be used to compare with next value in the same bucket
+				std::strcpy(preVal, ::leaf[idx].data());
+				hashtable[idx]++; // update the pointer
+
+				// up till now, the record of the leaf is still the same as the outputted one
+				DataRecord *inner_cur = dataRecords->at(idx);  // inner_cur is a pointer to 1000 records, each 1kb
+				DataRecord record = inner_cur[hashtable[idx]]; // hashtable[idx] has been updated
+
+				std::strcpy(::leaf[idx].data(), record.getIncl()); // assign new key to leaf
 				char curVal[sizeOfColumn + 1];
-				// std::strcpy(curVal, ::data[idx]);
+
 				std::strcpy(curVal, ::leaf[idx].data());
+
 				// find the offset
-				int offset = -1;
+				int offset = -1; // the index of the value that two values start to differ
 				for (int i = 0; i < sizeOfColumn; i++)
 				{
 					if (preVal[i] == curVal[i])
@@ -216,15 +224,20 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 						break;
 					}
 				}
+
+				// two values of the same bucket are equal
 				if (offset == -1)
 				{
 					offset = sizeOfColumn;
 				}
 
+				// if equal, the new value should be pushed right away to the output
 				if (offset == sizeOfColumn)
 				{
 					priorityQueue.push(idx, 0);
 				}
+
+				// two values differ, the latter in the bucket will compare with the one popped
 				else
 				{
 					int arityOffset = sizeOfColumn - offset;
@@ -234,7 +247,8 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 					priorityQueue.push(idx, arityOffset * 100 + intValue);
 				}
 			}
-			else
+
+			else // no more record left
 			{
 				priorityQueue.push(idx, priorityQueue.late_fence());
 			}
