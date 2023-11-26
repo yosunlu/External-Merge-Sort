@@ -11,7 +11,7 @@ SCRS=
 
 # headers and code sources
 HDRS=	defs.h \
-		Iterator.h Scan.h Filter.h Sort.h gen.h
+		Iterator.h Scan.h Filter.h Sort.h gen.h Dram.h DataRecord.h
 SRCS=	defs.cpp Assert.cpp Test.cpp \
 		Iterator.cpp Scan.cpp Filter.cpp Sort.cpp gen.cpp
 

@@ -7,6 +7,8 @@
 #include <cstdlib>
 #include <unistd.h>
 #include <sys/stat.h>
+#include "DataRecord.h"
+#include <fstream>
 
 long numOfRecord = 0;
 long record_size = 0;
