@@ -6,7 +6,9 @@
 #define REC_SIZE 1000
 #define REC_NUM 100
 
-/* add16 - add two 16-byte numbers
+/**
+    add16 - add two 16-byte numbers
+    u16 is defined as a structure containing two 64-bit unsigned integers (u8): hi8 and lo8.
  */
 u16 add16(u16 a, u16 b)
 {
@@ -36,6 +38,9 @@ int main()
 
     u16 temp16 = {0LL, 0LL};
     u16 one = {0LL, 1LL};
+    // This structure contains two u16 fields: rec_count and checksum.
+    // rec_count is used to keep track of the total number of records processed.
+    // checksum is used to store the cumulative checksum of all records. Each checksum field itself is a 128-bit value represented by the u16 structure.
     struct summary input_summary = {};
 
     while (inputFile.peek() != EOF)
