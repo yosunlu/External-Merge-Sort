@@ -80,7 +80,7 @@ int main(int argc, char *argv[])
 	// create records that will be saved in the input file
 	genDataRecords(numOfRecord);
 	int numBatch = numOfRecord / 1000;
-	int batch = numOfRecord / numBatch;
+	// int batch = numOfRecord / numBatch;
 
 	std::ifstream inputFile("input/input.txt", std::ios::binary);
 
@@ -99,39 +99,33 @@ int main(int argc, char *argv[])
 		delete plan;
 	}
 
-	std::ofstream outputFile("output.txt", std::ios::binary);
+	// merge run generation
+	Plan *const plan = new SortPlan(new ScanPlan(100000), RUN_PHASE_2, nullptr);
+	Iterator *const it = plan->init();
+	it->run();
 
-	if (!outputFile.is_open())
-	{
-		std::cerr << "Error opening output file." << std::endl;
-	}
+	// std::ofstream outputFile("output.txt", std::ios::binary);
 
-	for (int i = 0; i < numBatch; i++)
-	{
+	// if (!outputFile.is_open())
+	// {
+	// 	std::cerr << "Error opening output file." << std::endl;
+	// }
 
-		DataRecord *inner = dataRecords->at(i);
-		for (int j = 0; j < 1000; j++)
-		{
-			outputFile.write(inner[j].getIncl(), 332);
-			outputFile.write(" ", 1);
-			outputFile.write(inner[j].getMem(), 332);
-			outputFile.write(" ", 1);
-			outputFile.write(inner[j].getMgmt(), 332);
-			outputFile.write("\r\n", 2);
-		}
+	// for (int i = 0; i < numBatch; i++)
+	// {
 
-		// DataRecord *inner = dataRecords->at(i);
-		// for (int j = 0; j < 1000; j++)
-		// {
-		// 	outputFile.write(inner[0].getIncl(), 332);
-		// 	outputFile.write(" ", 1);
-		// 	outputFile.write(inner[0].getMem(), 332);
-		// 	outputFile.write(" ", 1);
-		// 	outputFile.write(inner[0].getMgmt(), 332);
-		// 	outputFile.write("\r\n", 2);
-		// }
-	}
-	outputFile.close();
+	// 	DataRecord *inner = dataRecords->at(i);
+	// 	for (int j = 0; j < 1000; j++)
+	// 	{
+	// 		outputFile.write(inner[j].getIncl(), 332);
+	// 		outputFile.write(" ", 1);
+	// 		outputFile.write(inner[j].getMem(), 332);
+	// 		outputFile.write(" ", 1);
+	// 		outputFile.write(inner[j].getMgmt(), 332);
+	// 		outputFile.write("\r\n", 2);
+	// 	}
+	// }
+	// outputFile.close();
 
 	inputFile.close();
 	// Plan * const plan = new FilterPlan ( new ScanPlan (7) );
