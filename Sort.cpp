@@ -74,7 +74,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		// records[i++] = *record;
 		// traceprintf("incl: %d ,mem: %d, mgmt: %d\n",record->getIncl(),record->getMem(),record->getMgmt());
 	}
-
+	//traceprintf("debug0-0\n");
 	// run generation phase1
 	if(_plan->_state == RUN_PHASE_1) {
 		DataRecord *records = new DataRecord[_consumed]();
@@ -118,16 +118,18 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 			targetlevel++;
 		}
 
+		//traceprintf("buckets: %lu\n", buckets);
+
 		// Resize the leaf vector
 		// numOfBucket = buckets;
 		// leaf.resize(numOfBucket, std::vector<char>(sizeOfColumn));
 		int *hashtable = new int[buckets]();
-		
 		// buckets from Dram
 		for (int i = 0; i < buckets; ++i)
-		{
-			DataRecord *record = dataRecords[i][0];
-			std::string inclString(record->getIncl());
+		{	
+			DataRecord *inner = dataRecords->at(i);
+			DataRecord record = inner[0];
+			std::string inclString(record.getIncl());
 			::leaf[i].assign(std::begin(inclString), std::end(inclString));
 		}
 
@@ -166,12 +168,14 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 			// std::strcpy(output[count], ::data[idx]);
 			// std::strcpy(output[count], ::leaf[idx].data());
 			// write to output file
-			DataRecord *output_record = dataRecords[idx][hashtable[idx]];
-			outputFile.write(output_record->getIncl(), 332);
+			DataRecord *inner = dataRecords->at(idx);
+			DataRecord output_record = inner[hashtable[idx]];
+
+			outputFile.write(output_record.getIncl(), 332);
 			outputFile.write(" ", 1);
-			outputFile.write(output_record->getMem(), 332);
+			outputFile.write(output_record.getMem(), 332);
 			outputFile.write(" ", 1);
-			outputFile.write(output_record->getMgmt(), 332);
+			outputFile.write(output_record.getMgmt(), 332);
 			outputFile.write("\r\n", 2);
 
 			if (count == buckets * sizeOfBucket - 1)
@@ -183,8 +187,10 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 				std::strcpy(preVal, ::leaf[idx].data());
 				hashtable[idx]++;
 				//std::strcpy(::data[idx], buckets[idx][hashtable[idx]]);
-				DataRecord *record = dataRecords[idx][hashtable[idx]];
-				std::strcpy(::leaf[idx].data(), record->getIncl());
+				DataRecord *inner_cur = dataRecords->at(idx);
+				DataRecord record = inner_cur[hashtable[idx]];
+
+				std::strcpy(::leaf[idx].data(), record.getIncl());
 				char curVal[sizeOfColumn + 1];
 				// std::strcpy(curVal, ::data[idx]);
 				std::strcpy(curVal, ::leaf[idx].data());
