@@ -58,8 +58,9 @@ void qs(DataRecord records[], int lower, int upper)
 	}
 }
 
-bool isPowerOfTwo(int x) {
-    return (x > 0) && ((x & (x - 1)) == 0);
+bool isPowerOfTwo(int x)
+{
+	return (x > 0) && ((x & (x - 1)) == 0);
 }
 
 SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(plan->_input->init()), // _input is a ScanPlan, so init() will return ScanIterator
@@ -74,9 +75,10 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		// records[i++] = *record;
 		// traceprintf("incl: %d ,mem: %d, mgmt: %d\n",record->getIncl(),record->getMem(),record->getMgmt());
 	}
-	//traceprintf("debug0-0\n");
-	// run generation phase1
-	if(_plan->_state == RUN_PHASE_1) {
+	// traceprintf("debug0-0\n");
+	//  run generation phase1
+	if (_plan->_state == RUN_PHASE_1)
+	{
 		DataRecord *records = new DataRecord[_consumed]();
 		int i = 0;
 		int j = _consumed;
@@ -105,59 +107,65 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		dataRecords->push_back(records);
 
 		delete[] records;
-	} else if(_plan->_state == RUN_PHASE_2) {
+	}
+	else if (_plan->_state == RUN_PHASE_2)
+	{
 		// 1000 records per bucket
 		int sizeOfBucket = 1000;
-		int const buckets = _consumed/1000;
-		int copyNum = buckets;
+		int const buckets = _consumed / 1000; // _consumed = 100000
+		int copyNum = buckets;				  // copyNum = buckets = 100
 		int targetlevel = 0;
 		while (copyNum >>= 1)
 			++targetlevel;
-		
-		if(!isPowerOfTwo(buckets)){
+
+		if (!isPowerOfTwo(buckets))
+		{
 			targetlevel++;
 		}
+		// targetlevel = 7
 
-		//traceprintf("buckets: %lu\n", buckets);
+		// traceprintf("buckets: %lu\n", buckets);
 
 		// Resize the leaf vector
 		// numOfBucket = buckets;
 		// leaf.resize(numOfBucket, std::vector<char>(sizeOfColumn));
-		int *hashtable = new int[buckets]();
+		int *hashtable = new int[buckets](); // initializes to 0
 		// buckets from Dram
 		for (int i = 0; i < buckets; ++i)
-		{	
+		{
 			DataRecord *inner = dataRecords->at(i);
 			DataRecord record = inner[0];
 			std::string inclString(record.getIncl());
-			::leaf[i].assign(std::begin(inclString), std::end(inclString));
+			::leaf[i].assign(std::begin(inclString), std::end(inclString)); // assign only key to leaf
 		}
 
 		// capacity 2^targetlevel
-    	PQ priorityQueue(targetlevel);
+		PQ priorityQueue(targetlevel);
 
 		// calculate the ovc
 		for (int i = 0; i < buckets; ++i)
 		{
-			// size 3 - 0 = 3
 			int intValue = ::leaf[i][0] - '0';
+			// 907 vs early-fence: arity = 3 (key has 3 columns); offset = 0 (compare with early-fence so differentiating index must be 0)
+			// intValue = 9; arity - offset = 3 - 0 = 3; 3 * 100 + 9 = 309
 			priorityQueue.push(i, (sizeOfColumn - 0) * 100 + intValue);
+
 			// std::cout << "intValue[" << i << "]: " << intValue << std::endl;
 		}
 
-		if(buckets < priorityQueue.capacity()) {
-			for(int i = buckets; i < priorityQueue.capacity(); i++) {
+		// input is 100,000 records; if each leaf (bucket) contains 1000 records, we only need 100 buckets;
+		// for the leftover buckets, fill in late fence and push
+		if (buckets < priorityQueue.capacity()) // capacity = 128
+		{
+			for (int i = buckets; i < priorityQueue.capacity(); i++)
 				priorityQueue.push(i, priorityQueue.late_fence());
-			}
 		}
 
 		std::ofstream outputFile("output.txt", std::ios::binary);
-
 		if (!outputFile.is_open())
-		{
 			std::cerr << "Error opening output file." << std::endl;
-		}
-		int count = 0;
+
+		int count = 0; // current count of the records being popped
 		while (count < buckets * sizeOfBucket)
 		{
 			int idx = priorityQueue.pop();
@@ -186,7 +194,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 				// std::strcpy(preVal, ::data[idx]);
 				std::strcpy(preVal, ::leaf[idx].data());
 				hashtable[idx]++;
-				//std::strcpy(::data[idx], buckets[idx][hashtable[idx]]);
+				// std::strcpy(::data[idx], buckets[idx][hashtable[idx]]);
 				DataRecord *inner_cur = dataRecords->at(idx);
 				DataRecord record = inner_cur[hashtable[idx]];
 
@@ -236,7 +244,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 
 		outputFile.close();
 	}
-	
+
 	delete _input;
 
 	traceprintf("consumed %lu rows\n",
