@@ -10,6 +10,7 @@
 #include <sys/stat.h>
 #include "DataRecord.h"
 #include <fstream>
+#include "Dram.h"
 
 long numOfRecord = 0;
 long record_size = 0;
@@ -77,12 +78,52 @@ int main(int argc, char *argv[])
 	}
 
 	// create records that will be saved in the input file
-	genDataRecords(numOfRecord);
-	Plan *const plan = new SortPlan(new ScanPlan(numOfRecord), RUN_PHASE_1);
+	genDataRecords(numOfRecord); // assuming 100MB data generated (100,000 records)
+	int numBatch = numOfRecord / 1000;
+	int batch = numOfRecord / numBatch; // batch = 1000
+
+	std::ifstream inputFile("input/input.txt", std::ios::binary);
+
+	if (!inputFile.is_open())
+	{
+		std::cerr << "Error opening input file." << std::endl;
+	}
+
+	for (int i = 0; i < numBatch; ++i)
+	{
+		Plan *const plan = new SortPlan(new ScanPlan(1000), RUN_PHASE_1, &inputFile);
+		Iterator *const it = plan->init();
+		it->run();
+
+		delete it;
+		delete plan;
+	}
+
+	std::ofstream outputFile("output.txt", std::ios::binary);
+
+	if (!outputFile.is_open())
+	{
+		std::cerr << "Error opening output file." << std::endl;
+	}
+
+	for (int i = 0; i < 100; i++)
+	{
+		for (int j = 0; j < 1000; j++)
+		{
+			outputFile.write(dataRecords[i][j]->getIncl(), 332);
+			outputFile.write(" ", 1);
+			outputFile.write(dataRecords[i][j]->getMem(), 332);
+			outputFile.write(" ", 1);
+			outputFile.write(dataRecords[i][j]->getMgmt(), 332);
+			outputFile.write("\r\n", 2);
+		}
+	}
+	outputFile.close();
+
+	inputFile.close();
 	// Plan * const plan = new FilterPlan ( new ScanPlan (7) );
 	// new SortPlan ( new FilterPlan ( new ScanPlan (7) ) );
 
-	Iterator *const it = plan->init();
 	// SortPlan has private attribute _input, which is intialized to a ScanPlan.
 	// In SortPlan's init(), a SortIterator(this) is constructed and returned.
 	// In SortIterator's constructor, the object itself is passed in as argument.
@@ -91,10 +132,6 @@ int main(int argc, char *argv[])
 	// ScanPlan's init() will return and construct a ScanIterator(this), where input.txt will be read.
 
 	// run (defined in iterator.cpp) will call SortIterator::next() in a while loop
-	it->run();
-	delete it;
-
-	delete plan;
 
 	return 0;
 } // main

@@ -3,10 +3,12 @@
 #include "Scan.h"
 #include <sys/types.h>
 #include <sys/sysctl.h>
+#include <fstream>
+#include "Dram.h"
 
 #define REC_SIZE 1000
 
-SortPlan::SortPlan(Plan *const input, SortState state) : _input(input), _state(state)
+SortPlan::SortPlan(Plan *const input, SortState state, std::ifstream *inputFile) : _input(input), _state(state), _inputFile(inputFile)
 {
 	TRACE(true);
 } // SortPlan::SortPlan
@@ -54,8 +56,8 @@ void qs(DataRecord records[], int lower, int upper)
 	}
 }
 
-SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(plan->_input->init()),
-														 _consumed(0), _produced(0)
+SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(plan->_input->init()), // _input is a ScanPlan, so init() will return ScanIterator
+														 _consumed(0), _produced(0), _inputFile(plan->_inputFile)
 {
 	TRACE(true);
 	// int i = 0;
@@ -68,7 +70,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 	}
 
 	// run generation
-	std::ifstream inputFile("input/input.txt", std::ios::binary);
+	// std::ifstream inputFile("input/input.txt", std::ios::binary);
 
 	// for (int i = 0; i < 100; i++)
 	// {
@@ -76,17 +78,12 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 	// 	// traceprintf("for loop : incl: %s ,mem: %s, mgmt: %s\n", record->getIncl(), record->getMem(), record->getMgmt());
 	// }
 
-	if (!inputFile.is_open())
-	{
-		std::cerr << "Error opening input file." << std::endl;
-	}
-
 	DataRecord *records = new DataRecord[_consumed]();
-	int i = 0;
-	while (inputFile.peek() != EOF)
+	int i = _consumed;
+	while (--i)
 	{
 		char row[REC_SIZE];
-		inputFile.read(row, sizeof(row));
+		_inputFile->read(row, sizeof(row));
 		row[sizeof(row) - 2] = '\0'; // last 2 bytes are newline characters
 
 		// Extracting data from the row
@@ -110,7 +107,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		// std::cout << "-----------------\n";
 	}
 
-	inputFile.close();
+	// _inputFile->close();
 
 	// for (int i = 0; i < 100; i++)
 	// {
@@ -120,6 +117,8 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 
 	qs(records, 0, _consumed - 1);
 
+	dataRecords->push_back(records);
+
 	// for (int i = 0; i < _consumed; i++)
 	// {
 	// 	DataRecord *record = &records[i];
@@ -127,24 +126,24 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 	// }
 
 	// write to output.txt
-	std::ofstream outputFile("output.txt", std::ios::binary);
+	// std::ofstream outputFile("output.txt", std::ios::binary);
 
-	if (!outputFile.is_open())
-	{
-		std::cerr << "Error opening output file." << std::endl;
-	}
+	// if (!outputFile.is_open())
+	// {
+	// 	std::cerr << "Error opening output file." << std::endl;
+	// }
 
-	for (int j = 0; j < _consumed; j++)
-	{
-		outputFile.write(records[j].getIncl(), 332);
-		outputFile.write(" ", 1);
-		outputFile.write(records[j].getMem(), 332);
-		outputFile.write(" ", 1);
-		outputFile.write(records[j].getMgmt(), 332);
-		outputFile.write("\r\n", 2);
-	}
+	// for (int j = 0; j < _consumed; j++)
+	// {
+	// 	outputFile.write(records[j].getIncl(), 332);
+	// 	outputFile.write(" ", 1);
+	// 	outputFile.write(records[j].getMem(), 332);
+	// 	outputFile.write(" ", 1);
+	// 	outputFile.write(records[j].getMgmt(), 332);
+	// 	outputFile.write("\r\n", 2);
+	// }
 
-	outputFile.close();
+	// outputFile.close();
 
 	delete[] records;
 

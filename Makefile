@@ -13,11 +13,11 @@ SCRS=
 HDRS=	defs.h \
 		Iterator.h Scan.h Filter.h Sort.h gen.h Dram.h DataRecord.h
 SRCS=	defs.cpp Assert.cpp Test.cpp \
-		Iterator.cpp Scan.cpp Filter.cpp Sort.cpp gen.cpp
+		Iterator.cpp Scan.cpp Filter.cpp Sort.cpp gen.cpp Dram.cpp
 
 # compilation targets
 OBJS=	defs.o Assert.o Test.o \
-		Iterator.o Scan.o Filter.o Sort.o gen.o
+		Iterator.o Scan.o Filter.o Sort.o gen.o Dram.o
 
 # RCS assists
 REV=-q -f
@@ -34,12 +34,13 @@ trace : Test.exe Makefile
 	@size -t Test.exe $(OBJS) | sort -r >> trace
 
 $(OBJS) : Makefile defs.h
-Test.o : Iterator.h Scan.h Filter.h Sort.h gen.h SortState.h
+Test.o : Iterator.h Scan.h Filter.h Sort.h gen.h SortState.h Dram.h
 Iterator.o Scan.o Filter.o Sort.o : Iterator.h
 Scan.o : Scan.h
 Filter.o : Filter.h
 Sort.o : Sort.h
 gen.o: gen.h
+Dram.o: Dram.h
 
 list : Makefile
 	echo Makefile $(HDRS) $(SRCS) $(DOCS) $(SCRS) > list
