@@ -106,10 +106,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		qs(records, 0, _consumed - 1);
 		dataRecords->push_back(records);
 
-		delete[] records;
-	}
-	else if (_plan->_state == RUN_PHASE_2)
-	{
+	} else if(_plan->_state == RUN_PHASE_2) {
 		// 1000 records per bucket
 		int sizeOfBucket = 1000;
 		int const buckets = _consumed / 1000; // _consumed = 100000
@@ -183,7 +180,6 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 			DataRecord *inner = dataRecords->at(idx);
 			// idx tells which leaf; hashtable[idx] returns the next pointer to the record
 			DataRecord output_record = inner[hashtable[idx]];
-
 			outputFile.write(output_record.getIncl(), 332);
 			outputFile.write(" ", 1);
 			outputFile.write(output_record.getMem(), 332);

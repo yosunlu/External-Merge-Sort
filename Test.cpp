@@ -99,11 +99,6 @@ int main(int argc, char *argv[])
 		delete plan;
 	}
 
-	// merge run generation
-	Plan *const plan = new SortPlan(new ScanPlan(100000), RUN_PHASE_2, nullptr);
-	Iterator *const it = plan->init();
-	it->run();
-
 	// std::ofstream outputFile("output.txt", std::ios::binary);
 
 	// if (!outputFile.is_open())
@@ -127,7 +122,14 @@ int main(int argc, char *argv[])
 	// }
 	// outputFile.close();
 
+	// merge run generation
+	Plan *const plan = new SortPlan(new ScanPlan(100000), RUN_PHASE_2, nullptr);
+	Iterator *const it = plan->init();
+	it->run();
+
 	inputFile.close();
+
+
 	// Plan * const plan = new FilterPlan ( new ScanPlan (7) );
 	// new SortPlan ( new FilterPlan ( new ScanPlan (7) ) );
 
