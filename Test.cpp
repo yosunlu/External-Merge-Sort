@@ -11,6 +11,7 @@
 #include "DataRecord.h"
 #include <fstream>
 #include "Dram.h"
+#include <vector>
 
 long numOfRecord = 0;
 long record_size = 0;
@@ -49,6 +50,7 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
+	// create input directory
 	const char *directoryName = "input";
 	struct stat info;
 
@@ -77,58 +79,73 @@ int main(int argc, char *argv[])
 		std::cerr << "Path exists but is not a directory." << std::endl;
 	}
 
+	// create SSD directory
+	directoryName = "SSD-10GB";
+
+	// Check if the directory exists
+	if (stat(directoryName, &info) != 0)
+	{
+		// Directory does not exist, try to create it
+		int dirCreationResult = mkdir(directoryName, 0777);
+		if (dirCreationResult == 0)
+		{
+			std::cout << "SSD created successfully." << std::endl;
+		}
+		else
+		{
+			std::cerr << "Error creating SSD." << std::endl;
+		}
+	}
+	else if (info.st_mode & S_IFDIR)
+	{
+		// Directory exists
+		std::cout << "SSD already exists." << std::endl;
+	}
+	else
+	{
+		// Path exists but is not a directory
+		std::cerr << "Path exists but is not a directory." << std::endl;
+	}
+
 	// create records that will be saved in the input file
-	genDataRecords(numOfRecord);
-	int numBatch = numOfRecord / 1000;
-	// int batch = numOfRecord / numBatch;
+
+	// assuming 10GB data; 1KB (per record) * 1000 (quicksort these  1000 record, 1MB) * 100 (total 100MB) * 100 = 10G
+	genDataRecords(numOfRecord); // 10GB data = 1000 * 100 * 100 records = 10,000,000 records
+
+	// int numBatch = numOfRecord / 1000;
 
 	std::ifstream inputFile("input/input.txt", std::ios::binary);
 
 	if (!inputFile.is_open())
-	{
 		std::cerr << "Error opening input file." << std::endl;
-	}
 
-	for (int i = 0; i < numBatch; ++i)
+	for (int i = 0; i < 10; i++) // 100 * 100MB dataRecords
 	{
-		Plan *const plan = new SortPlan(new ScanPlan(1000), RUN_PHASE_1, &inputFile);
+		// each iteration will push_back one pointer to 1000 records to dataRecords; when the for loop ends, there will be one dataRecord which is 100MB
+		for (int j = 0; j < 100; ++j)
+		{
+			Plan *const plan = new SortPlan(new ScanPlan(1000), RUN_PHASE_1, &inputFile, 0); // quick sort 1MB of data and repeat 100 times
+			Iterator *const it = plan->init();
+			it->run();
+
+			delete it;
+			delete plan;
+		}
+
+		Plan *const plan = new SortPlan(new ScanPlan(100000), RUN_PHASE_2, nullptr, i);
 		Iterator *const it = plan->init();
 		it->run();
+
+		for (int i = 0; i < 100; ++i)
+		{
+			dataRecords[i].clear();
+		}
 
 		delete it;
 		delete plan;
 	}
 
-	// std::ofstream outputFile("output.txt", std::ios::binary);
-
-	// if (!outputFile.is_open())
-	// {
-	// 	std::cerr << "Error opening output file." << std::endl;
-	// }
-
-	// for (int i = 0; i < numBatch; i++)
-	// {
-
-	// 	DataRecord *inner = dataRecords->at(i);
-	// 	for (int j = 0; j < 1000; j++)
-	// 	{
-	// 		outputFile.write(inner[j].getIncl(), 332);
-	// 		outputFile.write(" ", 1);
-	// 		outputFile.write(inner[j].getMem(), 332);
-	// 		outputFile.write(" ", 1);
-	// 		outputFile.write(inner[j].getMgmt(), 332);
-	// 		outputFile.write("\r\n", 2);
-	// 	}
-	// }
-	// outputFile.close();
-
-	// merge run generation
-	Plan *const plan = new SortPlan(new ScanPlan(100000), RUN_PHASE_2, nullptr);
-	Iterator *const it = plan->init();
-	it->run();
-
 	inputFile.close();
-
 
 	// Plan * const plan = new FilterPlan ( new ScanPlan (7) );
 	// new SortPlan ( new FilterPlan ( new ScanPlan (7) ) );

@@ -7,10 +7,11 @@
 #include "Dram.h"
 #include "Leaf.h"
 #include "PQ.h"
+#include <sstream>
 
 #define REC_SIZE 1000
 
-SortPlan::SortPlan(Plan *const input, SortState state, std::ifstream *inputFile) : _input(input), _state(state), _inputFile(inputFile)
+SortPlan::SortPlan(Plan *const input, SortState state, std::ifstream *inputFile, int fileCount) : _input(input), _state(state), _inputFile(inputFile), _fileCount(fileCount)
 {
 	TRACE(true);
 } // SortPlan::SortPlan
@@ -64,7 +65,7 @@ bool isPowerOfTwo(int x)
 }
 
 SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(plan->_input->init()), // _input is a ScanPlan, so init() will return ScanIterator
-														 _consumed(0), _produced(0), _inputFile(plan->_inputFile)
+														 _consumed(0), _produced(0), _inputFile(plan->_inputFile), _fileCount(plan->_fileCount)
 {
 	TRACE(true);
 	// int i = 0;
@@ -105,8 +106,9 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 
 		qs(records, 0, _consumed - 1);
 		dataRecords->push_back(records);
-
-	} else if(_plan->_state == RUN_PHASE_2) {
+	}
+	else if (_plan->_state == RUN_PHASE_2)
+	{
 		// 1000 records per bucket
 		int sizeOfBucket = 1000;
 		int const buckets = _consumed / 1000; // _consumed = 100000
@@ -160,7 +162,10 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 				priorityQueue.push(i, priorityQueue.late_fence());
 		}
 
-		std::ofstream outputFile("output.txt", std::ios::binary);
+		std::stringstream filename;
+		filename << "SSD-10GB/output_" << _fileCount << ".txt";
+
+		std::ofstream outputFile(filename.str(), std::ios::binary | std::ios::app); // std::ios::app for appending
 		if (!outputFile.is_open())
 			std::cerr << "Error opening output file." << std::endl;
 
