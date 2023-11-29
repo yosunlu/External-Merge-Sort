@@ -113,18 +113,20 @@ int main(int argc, char *argv[])
 	genDataRecords(numOfRecord); // 10GB data = 1000 * 100 * 100 records = 10,000,000 records
 
 	// int numBatch = numOfRecord / 1000;
-
+	std::vector<std::ifstream*> inputFiles;
 	std::ifstream inputFile("input/input.txt", std::ios::binary);
 
 	if (!inputFile.is_open())
 		std::cerr << "Error opening input file." << std::endl;
+	
+	inputFiles.push_back(&inputFile);
 
-	for (int i = 0; i < 10; i++) // 100 * 100MB dataRecords
+	for (int i = 0; i < 100; i++) // 100 * 100MB dataRecords
 	{
 		// each iteration will push_back one pointer to 1000 records to dataRecords; when the for loop ends, there will be one dataRecord which is 100MB
 		for (int j = 0; j < 100; ++j)
 		{
-			Plan *const plan = new SortPlan(new ScanPlan(1000), RUN_PHASE_1, &inputFile, 0); // quick sort 1MB of data and repeat 100 times
+			Plan *const plan = new SortPlan(new ScanPlan(1000), RUN_PHASE_1, inputFiles, 0); // quick sort 1MB of data and repeat 100 times
 			Iterator *const it = plan->init();
 			it->run();
 
@@ -132,7 +134,7 @@ int main(int argc, char *argv[])
 			delete plan;
 		}
 
-		Plan *const plan = new SortPlan(new ScanPlan(100000), RUN_PHASE_2, nullptr, i);
+		Plan *const plan = new SortPlan(new ScanPlan(100000), RUN_PHASE_2, inputFiles, i);
 		Iterator *const it = plan->init();
 		it->run();
 

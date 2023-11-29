@@ -11,7 +11,7 @@
 
 #define REC_SIZE 1000
 
-SortPlan::SortPlan(Plan *const input, SortState state, std::ifstream *inputFile, int fileCount) : _input(input), _state(state), _inputFile(inputFile), _fileCount(fileCount)
+SortPlan::SortPlan(Plan *const input, SortState state, std::vector<std::ifstream *> inputFiles, int fileCount) : _input(input), _state(state), _inputFiles(inputFiles), _fileCount(fileCount)
 {
 	TRACE(true);
 } // SortPlan::SortPlan
@@ -65,7 +65,7 @@ bool isPowerOfTwo(int x)
 }
 
 SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(plan->_input->init()), // _input is a ScanPlan, so init() will return ScanIterator
-														 _consumed(0), _produced(0), _inputFile(plan->_inputFile), _fileCount(plan->_fileCount)
+														 _consumed(0), _produced(0), _inputFiles(plan->_inputFiles), _fileCount(plan->_fileCount)
 {
 	TRACE(true);
 	// int i = 0;
@@ -86,7 +86,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		while (j--)
 		{
 			char row[REC_SIZE];
-			_inputFile->read(row, sizeof(row));
+			_inputFiles[0]->read(row, sizeof(row));
 			row[sizeof(row) - 2] = '\0'; // last 2 bytes are newline characters
 			// Extracting data from the row
 			char incl[333], mem[333], mgmt[333];
