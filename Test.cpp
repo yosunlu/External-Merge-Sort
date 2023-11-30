@@ -12,9 +12,22 @@
 #include <fstream>
 #include "Dram.h"
 #include <vector>
+#include <sstream>
 
 long numOfRecord = 0;
 long record_size = 0;
+
+// Function to close all files in the vector
+void closeInputFiles(std::vector<std::ifstream*>& inputFiles) {
+	for (size_t i = 0; i < inputFiles.size(); ++i) {
+		if (inputFiles[i]->is_open()) {
+            inputFiles[i]->close();
+        }
+	}
+
+    // Clear the vector after closing files
+    inputFiles.clear();
+}
 
 int main(int argc, char *argv[])
 {
@@ -107,12 +120,41 @@ int main(int argc, char *argv[])
 		std::cerr << "Path exists but is not a directory." << std::endl;
 	}
 
+	// create HDD directory
+	directoryName = "HDD";
+
+	// Check if the directory exists
+	if (stat(directoryName, &info) != 0)
+	{
+		// Directory does not exist, try to create it
+		int dirCreationResult = mkdir(directoryName, 0777);
+		if (dirCreationResult == 0)
+		{
+			std::cout << "HDD created successfully." << std::endl;
+		}
+		else
+		{
+			std::cerr << "Error creating HDD." << std::endl;
+		}
+	}
+	else if (info.st_mode & S_IFDIR)
+	{
+		// Directory exists
+		std::cout << "HDD already exists." << std::endl;
+	}
+	else
+	{
+		// Path exists but is not a directory
+		std::cerr << "Path exists but is not a directory." << std::endl;
+	}
+
 	// create records that will be saved in the input file
 
 	// assuming 10GB data; 1KB (per record) * 1000 (quicksort these  1000 record, 1MB) * 100 (total 100MB) * 100 = 10G
+	// int numBatch = numOfRecord / 1000;
+
 	genDataRecords(numOfRecord); // 10GB data = 1000 * 100 * 100 records = 10,000,000 records
 
-	// int numBatch = numOfRecord / 1000;
 	std::vector<std::ifstream*> inputFiles;
 	std::ifstream inputFile("input/input.txt", std::ios::binary);
 
@@ -147,7 +189,33 @@ int main(int argc, char *argv[])
 		delete plan;
 	}
 
-	inputFile.close();
+	// external sort phase 1
+	// merge 100 * 100MB on SSD to a 10GB on HDD
+	// inputFiles[1] ~ inputFiles[100]
+
+	for(int i = 0; i < 100; i++) {
+		std::stringstream filename;
+		filename << "SSD-10GB/output_" << i << ".txt";
+		 std::ifstream* newInputFile = new std::ifstream(filename.str(), std::ios::binary);
+
+        if (!newInputFile->is_open())
+            std::cerr << "Error opening input file." << std::endl;
+
+        inputFiles.push_back(newInputFile);
+	}
+
+	Plan *const plan = new SortPlan(new ScanPlan(10000000), EXTERNAL_PHASE_1, inputFiles, 0);
+	Iterator *const it = plan->init();
+	it->run();
+
+	for (int i = 0; i < 100; ++i)
+	{
+		dataRecords[i].clear();
+	}
+
+	closeInputFiles(inputFiles);
+	delete it;
+	delete plan;
 
 	// Plan * const plan = new FilterPlan ( new ScanPlan (7) );
 	// new SortPlan ( new FilterPlan ( new ScanPlan (7) ) );

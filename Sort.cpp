@@ -258,6 +258,267 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		}
 
 		outputFile.close();
+	} else if (_plan->_state == EXTERNAL_PHASE_1)
+	{
+		// read the 1MB from each 100MB on SSD
+		for(int i = 1; i < 101; i++) {
+			DataRecord *records = new DataRecord[1000]();
+			for(int j = 0; j < 1000; j++)
+			{
+				char row[REC_SIZE];
+				_inputFiles[i]->read(row, sizeof(row));
+				row[sizeof(row) - 2] = '\0'; // last 2 bytes are newline characters
+				// Extracting data from the row
+				char incl[333], mem[333], mgmt[333];
+				std::strncpy(incl, row, 332);
+				incl[332] = '\0';
+
+				std::strncpy(mem, row + 333, 332);
+				mem[332] = '\0';
+
+				std::strncpy(mgmt, row + 666, 332);
+				mgmt[332] = '\0';
+
+				// Creating a DataRecord
+				DataRecord record(incl, mem, mgmt);
+				records[j] = record;
+			}
+
+			dataRecords->push_back(records);
+		}
+
+		// 1 MB = 8KB * 125
+		// 8KB = 8 records
+		// 8 * 125 records per bucket
+		int sizeOfBucket = 1000;
+		int const buckets = 100;  // 100MB/1MB = 100
+		int copyNum = buckets;	 // copyNum = buckets = 100
+		int targetlevel = 0;
+		while (copyNum >>= 1)
+			++targetlevel;
+
+		if (!isPowerOfTwo(buckets))
+		{
+			targetlevel++;
+		}
+
+		// for next records
+		int *hashtable = new int[buckets](); // initializes to 0; stores pointer to the next record to be pushed for the leaf
+
+		// for how many records already output from each bucket
+		int *cntPerBucket = new int[buckets]();
+
+		// int *cnt1MBPerBucket = new int[buckets]();
+
+		// alreay push 1 record from each bucket, thus init this array with 1
+		for (int i = 0; i < buckets; ++i) {
+			cntPerBucket[i] = 1;
+		}
+
+		// buckets from Dram
+		for (int i = 0; i < buckets; ++i)
+		{
+			DataRecord *inner = dataRecords->at(i);
+			DataRecord record = inner[0];
+			std::string inclString(record.getIncl());
+			::leaf[i].assign(std::begin(inclString), std::end(inclString)); // assign only key to leaf
+		}
+
+		// capacity 2^targetlevel
+		PQ priorityQueue(targetlevel);
+
+		// calculate the ovc
+		for (int i = 0; i < buckets; ++i)
+		{
+			int intValue = ::leaf[i][0] - '0';
+			// 907 vs early-fence: arity = 3 (key has 3 columns); offset = 0 (compare with early-fence so differentiating index must be 0)
+			// intValue = 9; arity - offset = 3 - 0 = 3; 3 * 100 + 9 = 309
+			priorityQueue.push(i, (sizeOfColumn - 0) * 100 + intValue);
+
+			// std::cout << "intValue[" << i << "]: " << intValue << std::endl;
+		}
+
+		// input is 100,000 records; if each leaf (bucket) contains 1000 records, we only need 100 buckets;
+		// for the leftover buckets, fill in late fence and push
+		if (buckets < priorityQueue.capacity()) // capacity = 128
+		{
+			for (int i = buckets; i < priorityQueue.capacity(); i++)
+				priorityQueue.push(i, priorityQueue.late_fence());
+		}
+
+		std::stringstream filename;
+		filename << "HDD/output_10GB.txt";
+
+		std::ofstream outputFile(filename.str(), std::ios::binary | std::ios::app); // std::ios::app for appending
+		if (!outputFile.is_open())
+			std::cerr << "Error opening output file." << std::endl;
+
+		int count = 0; // current count of the records being popped
+		// output buffer : 1MB
+		DataRecord *outputBuf = new DataRecord[1000]();
+		int outputBufCnt = 0;
+		int outputTotalCnt = 0;
+		while (count < _consumed)
+		{
+			// std::cout << "count:"<< count << std::endl;
+			int idx = priorityQueue.pop();
+			if (idx == -1)
+			{
+				break;
+			}
+			// std::strcpy(output[count], ::data[idx]);
+			// std::strcpy(output[count], ::leaf[idx].data());
+			if(outputBufCnt < 1000) {
+				DataRecord *inner = dataRecords->at(idx);
+				// idx tells which leaf; hashtable[idx] returns the next pointer to the record
+				DataRecord output_record = inner[hashtable[idx]];
+				// add to the output buffer
+				outputBuf[outputBufCnt++] = output_record;
+			} else {
+				// if output buffer have 1000 records(1MB)
+				// write to HDD
+				for(int i = 0; i < 1000; i++) {
+					outputTotalCnt++;
+					DataRecord output_record = outputBuf[i];
+					outputFile.write(output_record.getIncl(), 332);
+					outputFile.write(" ", 1);
+					outputFile.write(output_record.getMem(), 332);
+					outputFile.write(" ", 1);
+					outputFile.write(output_record.getMgmt(), 332);
+					outputFile.write("\r\n", 2);
+				}
+				outputBufCnt = 0;
+				outputBuf = new DataRecord[1000]();
+
+				DataRecord *inner = dataRecords->at(idx);
+				// idx tells which leaf; hashtable[idx] returns the next pointer to the record
+				DataRecord output_record(inner[hashtable[idx]]);
+				// add to the output buffer
+				outputBuf[outputBufCnt++] = output_record;
+			
+			}
+
+			if (count == _consumed - 1)
+				break;
+
+			// the total size of a bucket is 100MB = 100*1000 records
+			if(cntPerBucket[idx] % 8 == 0 && cntPerBucket[idx] <= 99000) {
+				// read 8KB = 8 records from SSD
+				DataRecord *inner = dataRecords->at(idx);
+				int curHtPointer = hashtable[idx];
+				int startToFillPointer = curHtPointer - 7;
+				// std::cout << "idx:"<< idx << ", startToFillPointer:" << startToFillPointer << ", to curHtPointer:"<< curHtPointer << std::endl;
+				for(int j = 0; j < 8; j++)
+				{
+					char row[REC_SIZE];
+					_inputFiles[idx+1]->read(row, sizeof(row));
+					row[sizeof(row) - 2] = '\0'; // last 2 bytes are newline characters
+					// Extracting data from the row
+					char incl[333], mem[333], mgmt[333];
+					std::strncpy(incl, row, 332);
+					incl[332] = '\0';
+
+					std::strncpy(mem, row + 333, 332);
+					mem[332] = '\0';
+
+					std::strncpy(mgmt, row + 666, 332);
+					mgmt[332] = '\0';
+
+					// Creating a DataRecord
+					DataRecord record(incl, mem, mgmt);
+					inner[startToFillPointer++] = record;
+				}
+
+				// if(curHtPointer == 999) {
+				// 	cnt1MBPerBucket[idx]++;
+				// }
+			}
+			if(hashtable[idx] == 999 && cntPerBucket[idx] <= 100000) {
+				// std::cout << "------external phase 1 debug 8---------" << std::endl;
+				// std::cout << "idx:"<< idx << ", cntPerBucket[idx]:" << cntPerBucket[idx] << std::endl;
+				hashtable[idx] = -1;
+			}
+
+			if (hashtable[idx] < sizeOfBucket - 1) // check if there are record left in the bucket
+			{
+				char preVal[sizeOfColumn + 1];
+
+				// assign the data outputted, so preVal can be used to compare with next value in the same bucket
+				std::strcpy(preVal, ::leaf[idx].data());
+				hashtable[idx]++; // update the pointer
+				cntPerBucket[idx]++; // update the count per bucket
+
+				// up till now, the record of the leaf is still the same as the outputted one
+				DataRecord *inner_cur = dataRecords->at(idx);  // inner_cur is a pointer to 1000 records, each 1kb
+				DataRecord record = inner_cur[hashtable[idx]]; // hashtable[idx] has been updated
+
+				std::strcpy(::leaf[idx].data(), record.getIncl()); // assign new key to leaf
+				char curVal[sizeOfColumn + 1];
+
+				std::strcpy(curVal, ::leaf[idx].data());
+
+				// find the offset
+				int offset = -1; // the index of the value that two values start to differ
+				for (int i = 0; i < sizeOfColumn; i++)
+				{
+					if (preVal[i] == curVal[i])
+					{
+						continue;
+					}
+					else
+					{
+						offset = i;
+						break;
+					}
+				}
+
+				// two values of the same bucket are equal
+				if (offset == -1)
+				{
+					offset = sizeOfColumn;
+				}
+
+				// if equal, the new value should be pushed right away to the output
+				if (offset == sizeOfColumn)
+				{
+					priorityQueue.push(idx, 0);
+				}
+
+				// two values differ, the latter in the bucket will compare with the one popped
+				else
+				{
+					int arityOffset = sizeOfColumn - offset;
+					int intValue = curVal[offset] - '0';
+					// std::cout << "push val:" << curVal << std::endl;
+					// std::cout << "push idx:" << idx << ", key:" << arityOffset * 100 + intValue << std::endl;
+					priorityQueue.push(idx, arityOffset * 100 + intValue);
+				}
+			}
+			else // no more record left
+			{
+				priorityQueue.push(idx, priorityQueue.late_fence());
+			}
+
+			count++;
+		}
+
+		// output last output buffer
+		for(int i = 0; i < 1000; i++) {
+			outputTotalCnt++;
+			DataRecord output_record = outputBuf[i];
+			outputFile.write(output_record.getIncl(), 332);
+			outputFile.write(" ", 1);
+			outputFile.write(output_record.getMem(), 332);
+			outputFile.write(" ", 1);
+			outputFile.write(output_record.getMgmt(), 332);
+			outputFile.write("\r\n", 2);
+		}
+
+		outputFile.close();
+
+		// for(int i = 0; i < 100; i++) {
+		// 	std::cout << "cnt1MBPerBucket["<< i << "]:" << cnt1MBPerBucket[i] << std::endl;
+		// }
 	}
 
 	delete _input;

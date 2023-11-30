@@ -28,7 +28,7 @@ u16 add16(u16 a, u16 b)
 
 int main()
 {
-    std::ifstream inputFile("input.txt", std::ios::binary);
+    std::ifstream inputFile("../input/input.txt", std::ios::binary);
 
     if (!inputFile.is_open())
     {
@@ -54,7 +54,7 @@ int main()
 
     inputFile.close();
 
-    std::ifstream outputFile("input/output.txt", std::ios::binary);
+    std::ifstream outputFile("../HDD/output_10GB.txt", std::ios::binary);
 
     if (!outputFile.is_open())
     {
@@ -81,6 +81,7 @@ int main()
 
         if (i != 0 && std::strcmp(prev, incl) > 0)
         {
+            std::cout << "i:" << i << ",prev:" << prev << ",cur incl:" << incl << std::endl;
             isOrdered = false;
         }
 

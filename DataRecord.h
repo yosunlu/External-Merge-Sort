@@ -20,6 +20,20 @@ public:
         std::strncpy(_mgmt, mgmt, sizeof(_mgmt) - 1);
         _mgmt[sizeof(_mgmt) - 1] = '\0';
     }
+
+      // Copy constructor
+    DataRecord(const DataRecord& other)
+    {
+        std::strncpy(_incl, other._incl, sizeof(_incl) - 1);
+        _incl[sizeof(_incl) - 1] = '\0';
+
+        std::strncpy(_mem, other._mem, sizeof(_mem) - 1);
+        _mem[sizeof(_mem) - 1] = '\0';
+
+        std::strncpy(_mgmt, other._mgmt, sizeof(_mgmt) - 1);
+        _mgmt[sizeof(_mgmt) - 1] = '\0';
+    }
+    
     const char *getIncl() const { return _incl; }
     const char *getMem() const { return _mem; }
     const char *getMgmt() const { return _mgmt; }
