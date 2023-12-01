@@ -104,7 +104,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		}
 
 		qs(records, 0, _consumed - 1);
-		dataRecords->push_back(records);
+		dataRecords.push_back(records);
 	}
 	else if (_plan->_state == RUN_PHASE_2)
 	{
@@ -129,16 +129,14 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		// leaf.resize(numOfBucket, std::vector<char>(sizeOfColumn));
 
 		int *hashtable = new int[buckets](); // initializes to 0; stores pointer to the next record to be pushed for the leaf
-
 		// buckets from Dram
 		for (int i = 0; i < buckets; ++i)
 		{
-			DataRecord *inner = dataRecords->at(i);
+			DataRecord *inner = dataRecords.at(i);
 			DataRecord record = inner[0];
 			std::string inclString(record.getIncl());
 			::leaf[i].assign(std::begin(inclString), std::end(inclString)); // assign only key to leaf
 		}
-
 		// capacity 2^targetlevel
 		PQ priorityQueue(targetlevel);
 
@@ -182,7 +180,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 
 			// write to output file
 			// inner is a pointer to 1000 records, each 1kb
-			DataRecord *inner = dataRecords->at(idx);
+			DataRecord *inner = dataRecords.at(idx);
 			// idx tells which leaf; hashtable[idx] returns the next pointer to the record
 			DataRecord output_record = inner[hashtable[idx]];
 			outputFile.write(output_record.getIncl(), 332);
@@ -203,7 +201,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 				hashtable[idx]++; // update the pointer
 
 				// up till now, the record of the leaf is still the same as the outputted one
-				DataRecord *inner_cur = dataRecords->at(idx);  // inner_cur is a pointer to 1000 records, each 1kb
+				DataRecord *inner_cur = dataRecords.at(idx);  // inner_cur is a pointer to 1000 records, each 1kb
 				DataRecord record = inner_cur[hashtable[idx]]; // hashtable[idx] has been updated
 
 				std::strcpy(::leaf[idx].data(), record.getIncl()); // assign new key to leaf
@@ -286,7 +284,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 				records[j] = record;
 			}
 
-			dataRecords->push_back(records);
+			dataRecords.push_back(records);
 		}
 
 		// 1 MB = 8KB * 125
@@ -321,7 +319,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		// buckets from Dram
 		for (int i = 0; i < buckets; ++i)
 		{
-			DataRecord *inner = dataRecords->at(i);
+			DataRecord *inner = dataRecords.at(i);
 			DataRecord record = inner[0];
 			std::string inclString(record.getIncl());
 			::leaf[i].assign(std::begin(inclString), std::end(inclString)); // assign only key to leaf
@@ -372,9 +370,8 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 			}
 			// std::strcpy(output[count], ::data[idx]);
 			// std::strcpy(output[count], ::leaf[idx].data());
-			if (outputBufCnt < 1000)
-			{
-				DataRecord *inner = dataRecords->at(idx);
+			if(outputBufCnt < 1000) {
+				DataRecord *inner = dataRecords.at(idx);
 				// idx tells which leaf; hashtable[idx] returns the next pointer to the record
 				DataRecord output_record = inner[hashtable[idx]];
 				// add to the output buffer
@@ -396,9 +393,9 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 					outputFile.write("\r\n", 2);
 				}
 				outputBufCnt = 0;
-				outputBuf = new DataRecord[1000]();
+				// outputBuf = new DataRecord[1000]();
 
-				DataRecord *inner = dataRecords->at(idx);
+				DataRecord *inner = dataRecords.at(idx);
 				// idx tells which leaf; hashtable[idx] returns the next pointer to the record
 				DataRecord output_record(inner[hashtable[idx]]);
 				// add to the output buffer
@@ -412,7 +409,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 			if (cntPerBucket[idx] % 8 == 0 && cntPerBucket[idx] <= 99000)
 			{
 				// read 8KB = 8 records from SSD
-				DataRecord *inner = dataRecords->at(idx);
+				DataRecord *inner = dataRecords.at(idx);
 				int curHtPointer = hashtable[idx];
 				int startToFillPointer = curHtPointer - 7;
 				// std::cout << "idx:"<< idx << ", startToFillPointer:" << startToFillPointer << ", to curHtPointer:"<< curHtPointer << std::endl;
@@ -458,7 +455,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 				cntPerBucket[idx]++; // update the count per bucket
 
 				// up till now, the record of the leaf is still the same as the outputted one
-				DataRecord *inner_cur = dataRecords->at(idx);  // inner_cur is a pointer to 1000 records, each 1kb
+				DataRecord *inner_cur = dataRecords.at(idx);  // inner_cur is a pointer to 1000 records, each 1kb
 				DataRecord record = inner_cur[hashtable[idx]]; // hashtable[idx] has been updated
 
 				std::strcpy(::leaf[idx].data(), record.getIncl()); // assign new key to leaf

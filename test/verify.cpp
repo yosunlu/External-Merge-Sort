@@ -2,6 +2,7 @@
 #include "qs.h"
 #include <fstream>
 #include <zlib.h> /* use crc32() function */
+#include <cstring>
 
 #define REC_SIZE 1000
 #define REC_NUM 100
@@ -76,16 +77,16 @@ int main()
 
         // Extracting data from the row
         char incl[333];
-        std::strncpy(incl, row, 332);
+        strncpy(incl, row, 332);
         incl[332] = '\0';
 
-        if (i != 0 && std::strcmp(prev, incl) > 0)
+        if (i != 0 && strcmp(prev, incl) > 0)
         {
             std::cout << "i:" << i << ",prev:" << prev << ",cur incl:" << incl << std::endl;
             isOrdered = false;
         }
 
-        std::strncpy(prev, incl, 333);
+        strncpy(prev, incl, 333);
         i++;
     }
 

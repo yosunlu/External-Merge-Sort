@@ -2,4 +2,4 @@
 #include <vector>
 #include "DataRecord.h"
 
-std::vector<DataRecord *> dataRecords[100];
+std::vector<DataRecord *> dataRecords;

@@ -157,7 +157,7 @@ int main(int argc, char *argv[])
 	// assuming 10GB data; 1KB (per record) * 1000 (quicksort these  1000 record, 1MB) * 100 (total 100MB) * 100 = 10G
 	// int numBatch = numOfRecord / 1000;
 
-	genDataRecords(numOfRecord); // 10GB data = 1000 * 100 * 100 records = 10,000,000 records
+	// genDataRecords(numOfRecord); // 10GB data = 1000 * 100 * 100 records = 10,000,000 records
 								 // genDataRecords will store a single 10GB unsorted file in input/input.txt
 
 	std::vector<std::ifstream *> inputFiles;
@@ -195,8 +195,10 @@ int main(int argc, char *argv[])
 
 			for (int i = 0; i < 100; ++i)
 			{
-				dataRecords[i].clear();
+				delete[] dataRecords[i];
 			}
+
+			dataRecords.clear();
 
 			delete it;
 			delete plan;
@@ -224,7 +226,11 @@ int main(int argc, char *argv[])
 		it->run();
 
 		for (int i = 0; i < 100; ++i)
-			dataRecords[i].clear();
+		{
+			delete[] dataRecords[i];
+		}
+
+		dataRecords.clear();
 
 		delete it;
 		delete plan;

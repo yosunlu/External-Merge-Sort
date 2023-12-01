@@ -1,17 +1,18 @@
 #include <iostream>
+#include <cstring>
 
 class DataRecord {
 public:
 	DataRecord(){}
     DataRecord(const char incl[333], const char mem[333], const char mgmt[333]) {
 		// Copy the provided char array to _incl
-        std::strncpy(_incl, incl, sizeof(_incl) - 1);
+        strncpy(_incl, incl, sizeof(_incl) - 1);
         _incl[sizeof(_incl) - 1] = '\0';  // Ensure null-termination
 
-		std::strncpy(_mem, mem, sizeof(_mem) - 1);
+		strncpy(_mem, mem, sizeof(_mem) - 1);
         _mem[sizeof(_mem) - 1] = '\0';
 
-		std::strncpy(_mgmt, mgmt, sizeof(_mgmt) - 1);
+		strncpy(_mgmt, mgmt, sizeof(_mgmt) - 1);
         _mgmt[sizeof(_mgmt) - 1] = '\0';
 	}
     const char* getIncl() const { return _incl; }
