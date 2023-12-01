@@ -1,6 +1,7 @@
 #include "Iterator.h"
 #include "SortState.h"
 #include <fstream>
+#include <vector>
 
 class SortPlan : public Plan
 {
