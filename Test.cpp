@@ -13,20 +13,24 @@
 #include "Dram.h"
 #include <vector>
 #include <sstream>
+#include <cstdio>
 
 long numOfRecord = 0;
 long record_size = 0;
 
 // Function to close all files in the vector
-void closeInputFiles(std::vector<std::ifstream*>& inputFiles) {
-	for (size_t i = 0; i < inputFiles.size(); ++i) {
-		if (inputFiles[i]->is_open()) {
-            inputFiles[i]->close();
-        }
+void closeInputFiles(std::vector<std::ifstream *> &inputFiles)
+{
+	for (size_t i = 0; i < inputFiles.size(); ++i)
+	{
+		if (inputFiles[i]->is_open())
+		{
+			inputFiles[i]->close();
+		}
 	}
 
-    // Clear the vector after closing files
-    inputFiles.clear();
+	// Clear the vector after closing files
+	inputFiles.clear();
 }
 
 int main(int argc, char *argv[])
@@ -74,7 +78,7 @@ int main(int argc, char *argv[])
 		int dirCreationResult = mkdir(directoryName, 0777);
 		if (dirCreationResult == 0)
 		{
-			std::cout << "Directory created successfully." << std::endl;
+			std::cout << "Input directory created successfully." << std::endl;
 		}
 		else
 		{
@@ -84,7 +88,7 @@ int main(int argc, char *argv[])
 	else if (info.st_mode & S_IFDIR)
 	{
 		// Directory exists
-		std::cout << "Directory already exists." << std::endl;
+		std::cout << "Input Directory already exists." << std::endl;
 	}
 	else
 	{
@@ -154,80 +158,102 @@ int main(int argc, char *argv[])
 	// int numBatch = numOfRecord / 1000;
 
 	genDataRecords(numOfRecord); // 10GB data = 1000 * 100 * 100 records = 10,000,000 records
+								 // genDataRecords will store a single 10GB unsorted file in input/input.txt
 
-	std::vector<std::ifstream*> inputFiles;
+	std::vector<std::ifstream *> inputFiles;
+
+	// create a pointer to that 10GB * numOf10GBs unsorted file
 	std::ifstream inputFile("input/input.txt", std::ios::binary);
 
 	if (!inputFile.is_open())
 		std::cerr << "Error opening input file." << std::endl;
-	
+
 	inputFiles.push_back(&inputFile);
 
-	for (int i = 0; i < 100; i++) // 100 * 100MB dataRecords
+	int numOf10GBs = numOfRecord / 10000000; // how many 10GB file generated
+
+	for (int s = 0; s < numOf10GBs; ++s)
 	{
-		// each iteration will push_back one pointer to 1000 records to dataRecords; when the for loop ends, there will be one dataRecord which is 100MB
-		for (int j = 0; j < 100; ++j)
+		// each iteration will create a sorted 100MB file to SSD
+		for (int i = 0; i < 100; i++) // 100 * 100MB dataRecords
 		{
-			Plan *const plan = new SortPlan(new ScanPlan(1000), RUN_PHASE_1, inputFiles, 0); // quick sort 1MB of data and repeat 100 times
+			// each iteration will push_back one pointer to 1000 records to dataRecords;
+			// when the for loop ends, there will be one dataRecord which is 100MB
+			for (int j = 0; j < 100; ++j)
+			{
+				Plan *const plan = new SortPlan(new ScanPlan(1000), RUN_PHASE_1, inputFiles, 0, 0); // quick sort 1MB of data and repeat 100 times
+				Iterator *const it = plan->init();
+				it->run();
+
+				delete it;
+				delete plan;
+			}
+
+			Plan *const plan = new SortPlan(new ScanPlan(100000), RUN_PHASE_2, inputFiles, i, 0); // 100000 record is 100MB
 			Iterator *const it = plan->init();
 			it->run();
+
+			for (int i = 0; i < 100; ++i)
+			{
+				dataRecords[i].clear();
+			}
 
 			delete it;
 			delete plan;
 		}
 
-		Plan *const plan = new SortPlan(new ScanPlan(100000), RUN_PHASE_2, inputFiles, i);
+		// external sort phase 1
+		// merge 100 * 100MB on SSD to a 10GB on HDD
+		// inputFiles[1] ~ inputFiles[100]
+
+		// make the 100 outputs from last for loop the new inputs
+		for (int i = 0; i < 100; i++)
+		{
+			std::stringstream filename;
+			filename << "SSD-10GB/output_" << i << ".txt";
+			std::ifstream *newInputFile = new std::ifstream(filename.str(), std::ios::binary);
+
+			if (!newInputFile->is_open())
+				std::cerr << "Error opening input file." << std::endl;
+
+			inputFiles.push_back(newInputFile);
+		}
+
+		Plan *const plan = new SortPlan(new ScanPlan(10000000), EXTERNAL_PHASE_1, inputFiles, 0, s);
 		Iterator *const it = plan->init();
 		it->run();
 
 		for (int i = 0; i < 100; ++i)
-		{
 			dataRecords[i].clear();
-		}
 
 		delete it;
 		delete plan;
+
+		// after outputting the 100 * 100MB (10GB) sorted file to HDD, clear the SSD
+		for (int fileCount = 0; fileCount < 100; ++fileCount)
+		{
+			std::stringstream filename;
+			filename << "SSD-10GB/output_" << fileCount << ".txt";
+
+			// Convert the stringstream to a string and then to a path
+			std::string file_to_delete = filename.str();
+
+			if (std::remove(file_to_delete.c_str()) != 0)
+				perror("Error deleting file");
+
+			inputFiles.pop_back();
+		}
 	}
-
-	// external sort phase 1
-	// merge 100 * 100MB on SSD to a 10GB on HDD
-	// inputFiles[1] ~ inputFiles[100]
-
-	for(int i = 0; i < 100; i++) {
-		std::stringstream filename;
-		filename << "SSD-10GB/output_" << i << ".txt";
-		 std::ifstream* newInputFile = new std::ifstream(filename.str(), std::ios::binary);
-
-        if (!newInputFile->is_open())
-            std::cerr << "Error opening input file." << std::endl;
-
-        inputFiles.push_back(newInputFile);
-	}
-
-	Plan *const plan = new SortPlan(new ScanPlan(10000000), EXTERNAL_PHASE_1, inputFiles, 0);
-	Iterator *const it = plan->init();
-	it->run();
-
-	for (int i = 0; i < 100; ++i)
-	{
-		dataRecords[i].clear();
-	}
-
 	closeInputFiles(inputFiles);
-	delete it;
-	delete plan;
 
-	// Plan * const plan = new FilterPlan ( new ScanPlan (7) );
-	// new SortPlan ( new FilterPlan ( new ScanPlan (7) ) );
+	// Plan *const plan = new FilterPlan(new ScanPlan(7));
+	// new SortPlan(new FilterPlan(new ScanPlan(7)));
 
 	// SortPlan has private attribute _input, which is intialized to a ScanPlan.
-	// In SortPlan's init(), a SortIterator(this) is constructed and returned.
-	// In SortIterator's constructor, the object itself is passed in as argument.
-	// The object itself's private attribute _input is used to initialized SortIterator's private attributes.
-	// In the constructor, the object's _input (a ScanPlan) is used to call _input->init().
-	// ScanPlan's init() will return and construct a ScanIterator(this), where input.txt will be read.
-
-	// run (defined in iterator.cpp) will call SortIterator::next() in a while loop
-
+	// In SortPlan 's init(), a SortIterator(this) is constructed and returned.
+	// In SortIterator' s constructor, the object itself is passed in as argument.
+	// The object itself 's private attribute _input is used to initialized SortIterator' s private attributes.
+	// In the constructor, the object 's _input (a ScanPlan) is used to call _input->init().
+	// ScanPlan' s init() will return and construct a ScanIterator(this), where input.txt will be read.
 	return 0;
 } // main

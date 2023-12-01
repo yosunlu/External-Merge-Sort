@@ -9,7 +9,7 @@
 
 #define REC_SIZE 1000
 
-SortPlan::SortPlan(Plan *const input, SortState state, std::vector<std::ifstream *> inputFiles, int fileCount) : _input(input), _state(state), _inputFiles(inputFiles), _fileCount(fileCount)
+SortPlan::SortPlan(Plan *const input, SortState state, std::vector<std::ifstream *> inputFiles, int fileCount, int HDD_10GB_count) : _input(input), _state(state), _inputFiles(inputFiles), _fileCount(fileCount), _HDD_10GB_count(HDD_10GB_count)
 {
 	TRACE(true);
 } // SortPlan::SortPlan
@@ -63,7 +63,7 @@ bool isPowerOfTwo(int x)
 }
 
 SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(plan->_input->init()), // _input is a ScanPlan, so init() will return ScanIterator
-														 _consumed(0), _produced(0), _inputFiles(plan->_inputFiles), _fileCount(plan->_fileCount)
+														 _consumed(0), _produced(0), _inputFiles(plan->_inputFiles), _fileCount(plan->_fileCount), _HDD_10GB_count(plan->_HDD_10GB_count)
 {
 	TRACE(true);
 	// int i = 0;
@@ -75,10 +75,11 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		// traceprintf("incl: %d ,mem: %d, mgmt: %d\n",record->getIncl(),record->getMem(),record->getMgmt());
 	}
 	// traceprintf("debug0-0\n");
+
 	//  run generation phase1
 	if (_plan->_state == RUN_PHASE_1)
 	{
-		DataRecord *records = new DataRecord[_consumed]();
+		DataRecord *records = new DataRecord[_consumed](); // a pointer to 100MB file
 		int i = 0;
 		int j = _consumed;
 		while (j--)
@@ -164,6 +165,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		filename << "SSD-10GB/output_" << _fileCount << ".txt";
 
 		std::ofstream outputFile(filename.str(), std::ios::binary | std::ios::app); // std::ios::app for appending
+		traceprintf("%s\n", filename.str().c_str());
 		if (!outputFile.is_open())
 			std::cerr << "Error opening output file." << std::endl;
 
@@ -256,12 +258,14 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		}
 
 		outputFile.close();
-	} else if (_plan->_state == EXTERNAL_PHASE_1)
+	}
+	else if (_plan->_state == EXTERNAL_PHASE_1)
 	{
 		// read the 1MB from each 100MB on SSD
-		for(int i = 1; i < 101; i++) {
+		for (int i = 1; i < 101; i++)
+		{
 			DataRecord *records = new DataRecord[1000]();
-			for(int j = 0; j < 1000; j++)
+			for (int j = 0; j < 1000; j++)
 			{
 				char row[REC_SIZE];
 				_inputFiles[i]->read(row, sizeof(row));
@@ -289,7 +293,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		// 8KB = 8 records
 		// 8 * 125 records per bucket
 		int sizeOfBucket = 1000;
-		int const buckets = 100;  // 100MB/1MB = 100
+		int const buckets = 100; // 100MB/1MB = 100
 		int copyNum = buckets;	 // copyNum = buckets = 100
 		int targetlevel = 0;
 		while (copyNum >>= 1)
@@ -309,7 +313,8 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		// int *cnt1MBPerBucket = new int[buckets]();
 
 		// alreay push 1 record from each bucket, thus init this array with 1
-		for (int i = 0; i < buckets; ++i) {
+		for (int i = 0; i < buckets; ++i)
+		{
 			cntPerBucket[i] = 1;
 		}
 
@@ -344,10 +349,11 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 				priorityQueue.push(i, priorityQueue.late_fence());
 		}
 
-		std::stringstream filename;
-		filename << "HDD/output_10GB.txt";
+		std::stringstream HDD_file;
+		HDD_file << "HDD/output_10GB_" << _HDD_10GB_count << ".txt";
+		// filename << "SSD-10GB/output_" << _fileCount << ".txt";
 
-		std::ofstream outputFile(filename.str(), std::ios::binary | std::ios::app); // std::ios::app for appending
+		std::ofstream outputFile(HDD_file.str(), std::ios::binary | std::ios::app); // std::ios::app for appending
 		if (!outputFile.is_open())
 			std::cerr << "Error opening output file." << std::endl;
 
@@ -366,16 +372,20 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 			}
 			// std::strcpy(output[count], ::data[idx]);
 			// std::strcpy(output[count], ::leaf[idx].data());
-			if(outputBufCnt < 1000) {
+			if (outputBufCnt < 1000)
+			{
 				DataRecord *inner = dataRecords->at(idx);
 				// idx tells which leaf; hashtable[idx] returns the next pointer to the record
 				DataRecord output_record = inner[hashtable[idx]];
 				// add to the output buffer
 				outputBuf[outputBufCnt++] = output_record;
-			} else {
+			}
+			else
+			{
 				// if output buffer have 1000 records(1MB)
 				// write to HDD
-				for(int i = 0; i < 1000; i++) {
+				for (int i = 0; i < 1000; i++)
+				{
 					// outputTotalCnt++;
 					DataRecord output_record = outputBuf[i];
 					outputFile.write(output_record.getIncl(), 332);
@@ -393,23 +403,23 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 				DataRecord output_record(inner[hashtable[idx]]);
 				// add to the output buffer
 				outputBuf[outputBufCnt++] = output_record;
-			
 			}
 
 			if (count == _consumed - 1)
 				break;
 
 			// the total size of a bucket is 100MB = 100*1000 records
-			if(cntPerBucket[idx] % 8 == 0 && cntPerBucket[idx] <= 99000) {
+			if (cntPerBucket[idx] % 8 == 0 && cntPerBucket[idx] <= 99000)
+			{
 				// read 8KB = 8 records from SSD
 				DataRecord *inner = dataRecords->at(idx);
 				int curHtPointer = hashtable[idx];
 				int startToFillPointer = curHtPointer - 7;
 				// std::cout << "idx:"<< idx << ", startToFillPointer:" << startToFillPointer << ", to curHtPointer:"<< curHtPointer << std::endl;
-				for(int j = 0; j < 8; j++)
+				for (int j = 0; j < 8; j++)
 				{
 					char row[REC_SIZE];
-					_inputFiles[idx+1]->read(row, sizeof(row));
+					_inputFiles[idx + 1]->read(row, sizeof(row));
 					row[sizeof(row) - 2] = '\0'; // last 2 bytes are newline characters
 					// Extracting data from the row
 					char incl[333], mem[333], mgmt[333];
@@ -431,7 +441,8 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 				// 	cnt1MBPerBucket[idx]++;
 				// }
 			}
-			if(hashtable[idx] == 999 && cntPerBucket[idx] <= 100000) {
+			if (hashtable[idx] == 999 && cntPerBucket[idx] <= 100000)
+			{
 				// std::cout << "------external phase 1 debug 8---------" << std::endl;
 				// std::cout << "idx:"<< idx << ", cntPerBucket[idx]:" << cntPerBucket[idx] << std::endl;
 				hashtable[idx] = -1;
@@ -443,7 +454,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 
 				// assign the data outputted, so preVal can be used to compare with next value in the same bucket
 				std::strcpy(preVal, ::leaf[idx].data());
-				hashtable[idx]++; // update the pointer
+				hashtable[idx]++;	 // update the pointer
 				cntPerBucket[idx]++; // update the count per bucket
 
 				// up till now, the record of the leaf is still the same as the outputted one
@@ -501,7 +512,8 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		}
 
 		// output last output buffer
-		for(int i = 0; i < 1000; i++) {
+		for (int i = 0; i < 1000; i++)
+		{
 			// outputTotalCnt++;
 			DataRecord output_record = outputBuf[i];
 			outputFile.write(output_record.getIncl(), 332);

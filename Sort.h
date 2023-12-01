@@ -8,7 +8,7 @@ class SortPlan : public Plan
 	friend class SortIterator;
 
 public:
-	SortPlan(Plan *const input, SortState state, std::vector<std::ifstream *> inputFiles, int fileCount);
+	SortPlan(Plan *const input, SortState state, std::vector<std::ifstream *> inputFiles, int fileCount, int HDD_10GB_count);
 	~SortPlan();
 	Iterator *init() const;
 
@@ -17,6 +17,7 @@ private:
 	SortState _state;
 	std::vector<std::ifstream *> _inputFiles;
 	int _fileCount;
+	int _HDD_10GB_count;
 
 }; // class SortPlan
 
@@ -35,4 +36,5 @@ private:
 	DataRecord *_currentRecord;
 	std::vector<std::ifstream *> _inputFiles;
 	int _fileCount;
+	int _HDD_10GB_count;
 }; // class SortIterator
