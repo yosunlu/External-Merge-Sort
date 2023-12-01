@@ -1,8 +1,6 @@
 #include <fstream>
 #include "Sort.h"
 #include "Scan.h"
-#include <sys/types.h>
-#include <sys/sysctl.h>
 #include <fstream>
 #include "Dram.h"
 #include "Leaf.h"
@@ -357,7 +355,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		// output buffer : 1MB
 		DataRecord *outputBuf = new DataRecord[1000]();
 		int outputBufCnt = 0;
-		int outputTotalCnt = 0;
+		// int outputTotalCnt = 0;
 		while (count < _consumed)
 		{
 			// std::cout << "count:"<< count << std::endl;
@@ -378,7 +376,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 				// if output buffer have 1000 records(1MB)
 				// write to HDD
 				for(int i = 0; i < 1000; i++) {
-					outputTotalCnt++;
+					// outputTotalCnt++;
 					DataRecord output_record = outputBuf[i];
 					outputFile.write(output_record.getIncl(), 332);
 					outputFile.write(" ", 1);
@@ -504,7 +502,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 
 		// output last output buffer
 		for(int i = 0; i < 1000; i++) {
-			outputTotalCnt++;
+			// outputTotalCnt++;
 			DataRecord output_record = outputBuf[i];
 			outputFile.write(output_record.getIncl(), 332);
 			outputFile.write(" ", 1);
