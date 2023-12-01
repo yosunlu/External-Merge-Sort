@@ -164,14 +164,14 @@ int main(int argc, char *argv[])
 
 	// create a pointer to that 10GB * numOf10GBs unsorted file
 	std::ifstream inputFile("input/input.txt", std::ios::binary);
-
 	if (!inputFile.is_open())
 		std::cerr << "Error opening input file." << std::endl;
 
 	inputFiles.push_back(&inputFile);
 
-	int numOf10GBs = numOfRecord / 10000000; // how many 10GB file generated
+	int numOf10GBs = numOfRecord / 10000000; // how many 10GB file to be generated
 
+	// each iteration will create a 10GB sorted file to HDD
 	for (int s = 0; s < numOf10GBs; ++s)
 	{
 		// each iteration will create a sorted 100MB file to SSD
@@ -247,9 +247,33 @@ int main(int argc, char *argv[])
 			if (std::remove(file_to_delete.c_str()) != 0)
 				perror("Error deleting file");
 
-			inputFiles.pop_back();
+			inputFiles.pop_back(); // clear the vector that stored pointers to 100 100MB files that was just sorted and outputted to HDD
 		}
 	}
+
+	// external sort phase 2
+	// clear the inputFiles vector and free the memory
+	// for (std::ifstream *ptr : inputFiles)
+	// 	delete ptr; // Delete the object pointed to by the pointer
+	// inputFiles.clear();
+
+	// // make the 10GB outputs from previous phase new inputs
+	// for (int i = 0; i < numOf10GBs; i++)
+	// {
+	// 	std::stringstream filename;
+	// 	filename << "HDD/output_10GB_" << i << ".txt";
+	// 	std::ifstream *newInputFile = new std::ifstream(filename.str(), std::ios::binary);
+
+	// 	if (!newInputFile->is_open())
+	// 		std::cerr << "Error opening input file." << std::endl;
+
+	// 	inputFiles.push_back(newInputFile);
+	// }
+
+	// Plan *const plan = new SortPlan(new ScanPlan(numOfRecord), EXTERNAL_PHASE_2, inputFiles, 0, numOf10GBs);
+	// Iterator *const it = plan->init();
+	// it->run();
+
 	closeInputFiles(inputFiles);
 
 	// Plan *const plan = new FilterPlan(new ScanPlan(7));
