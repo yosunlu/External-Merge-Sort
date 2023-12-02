@@ -117,10 +117,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 			++targetlevel;
 
 		if (!isPowerOfTwo(buckets))
-		{
 			targetlevel++;
-		}
-		// targetlevel = 7
 
 		// traceprintf("buckets: %lu\n", buckets);
 
@@ -536,45 +533,33 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 
 	else if (_plan->_state == EXTERNAL_PHASE_2)
 	{
-		// fan-in will be 100MB / _HDD_10GB_count
+		// fan-in will be (100MB / _HDD_10GB_count)
 		// assuming 40GB file: 100MB / 4 -> 25MB from each 1GB on SDD
 		for (int i = 0; i < _HDD_10GB_count; i++)
 		{
 			DataRecord *records = new DataRecord[25000]();
-
-			for (int j = 0; j < 25; j++) // TODO: now is write die
+			for (int k = 0; k < 25000; k++)
 			{
-				int count = 0;
-				// read 1MB of data at a time from HDD for each 25MB data
-				for (int k = 0; k < 1000; k++)
-				{
-					char row[REC_SIZE];
-					_inputFiles[i]->read(row, sizeof(row));
-					row[sizeof(row) - 2] = '\0'; // last 2 bytes are newline characters
-					// Extracting data from the row
-					char incl[333], mem[333], mgmt[333];
-					std::strncpy(incl, row, 332);
-					incl[332] = '\0';
+				char row[REC_SIZE];
+				_inputFiles[i]->read(row, sizeof(row));
+				row[sizeof(row) - 2] = '\0'; // last 2 bytes are newline characters
+				// Extracting data from the row
+				char incl[333], mem[333], mgmt[333];
+				std::strncpy(incl, row, 332);
+				incl[332] = '\0';
 
-					std::strncpy(mem, row + 333, 332);
-					mem[332] = '\0';
+				std::strncpy(mem, row + 333, 332);
+				mem[332] = '\0';
 
-					std::strncpy(mgmt, row + 666, 332);
-					mgmt[332] = '\0';
+				std::strncpy(mgmt, row + 666, 332);
+				mgmt[332] = '\0';
 
-					// Creating a DataRecord
-					DataRecord record(incl, mem, mgmt);
-					records[count++] = record;
-				}
+				// Creating a DataRecord
+				DataRecord record(incl, mem, mgmt);
+				records[k++] = record;
 			}
-
 			dataRecords.push_back(records);
 		}
-
-		// Dram (dataRecords) is 100MB
-		// 1 MB = 8KB * 125
-		// 8KB = 8 records
-		// 8 * 125 records per bucket
 
 		int sizeOfBucket = 25000; // how many records are there in each of Dram's buckets
 		int const numOfbuckets = _HDD_10GB_count;
@@ -589,7 +574,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		// initialized to 0; stores pointer to the next record to be pushed for the leaf
 		int *hashtable = new int[numOfbuckets]();
 
-		// for how many records already output from each bucket
+		// for how many records already output from each bucket (max would be 10GB / 1KB = 10,000,000 records)
 		int *cntPerBucket = new int[numOfbuckets]();
 
 		// already push 1 record from each bucket, thus init this array with 1
@@ -598,13 +583,14 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 
 		leaf.resize(numOfbuckets);
 
-		// buckets from Dram
+		// initialize the tree leaves from dram
 		for (int i = 0; i < numOfbuckets; ++i)
 		{
 			DataRecord *inner = dataRecords.at(i);
 			DataRecord record = inner[0];
 			std::string inclString(record.getIncl());
 			::leaf[i].assign(std::begin(inclString), std::end(inclString)); // assign only key to leaf
+																			// traceprintf("incl: %s ,mem: %s, mgmt: %s\n", record.getIncl(), record.getMem(), record.getMgmt());
 		}
 
 		// capacity = 2^targetlevel
@@ -621,7 +607,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		}
 
 		// for the leftover buckets, fill in late fence and push
-		if (numOfbuckets < priorityQueue.capacity()) // ?????
+		if (numOfbuckets < priorityQueue.capacity())
 		{
 			for (int i = numOfbuckets; i < priorityQueue.capacity(); i++)
 				priorityQueue.push(i, priorityQueue.late_fence());
@@ -687,7 +673,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 				// read 1MB = 1000 records from HDD
 				DataRecord *inner = dataRecords.at(idx);
 				int curHtPointer = hashtable[idx];
-				int startToFillPointer = curHtPointer - 999; // the recordes before startToFillPointer have been outputted
+				int startToFillPointer = curHtPointer - 999; // the records before startToFillPointer have been outputted
 				// std::cout << "idx:"<< idx << ", startToFillPointer:" << startToFillPointer << ", to curHtPointer:"<< curHtPointer << std::endl;
 				for (int j = 0; j < 1000; j++)
 				{

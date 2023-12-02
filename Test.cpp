@@ -159,9 +159,9 @@ int main(int argc, char *argv[])
 	/***Starting line of commenting out for external phase 2****/
 	/***********************************************************/
 
-	// create records that will be saved in the input file
+	// // create records that will be saved in the input file
 	// genDataRecords(numOfRecord); // 10GB data = 1000 * 100 * 100 records = 10,000,000 records
-	// genDataRecords will store a single 10GB unsorted file in input/input.txt
+	// // genDataRecords will store a single 10GB unsorted file in input/input.txt
 
 	// // create a pointer to that 10GB * numOf10GBs unsorted file
 	// std::ifstream inputFile("input/input.txt", std::ios::binary);
@@ -252,7 +252,7 @@ int main(int argc, char *argv[])
 	// }
 
 	// // pop-back the 0th large input file (120GB)
-	// // inputFiles.pop_back();
+	// inputFiles.pop_back();
 
 	// // external sort phase 2
 	// // clear the inputFiles vector and free the memory
@@ -282,6 +282,8 @@ int main(int argc, char *argv[])
 	it->run();
 
 	closeInputFiles(inputFiles);
+	for (std::ifstream *ptr : inputFiles)
+		delete ptr; // Delete the object pointed to by the pointer
 
 	// Plan *const plan = new FilterPlan(new ScanPlan(7));
 	// new SortPlan(new FilterPlan(new ScanPlan(7)));
