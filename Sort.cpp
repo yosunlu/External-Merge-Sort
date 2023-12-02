@@ -531,14 +531,19 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		// }
 	}
 
+	/***************************************/
+	/*********External Phase 2**************/
+	/***************************************/
+
 	else if (_plan->_state == EXTERNAL_PHASE_2)
 	{
 		// fan-in will be (100MB / _HDD_10GB_count)
-		// assuming 40GB file: 100MB / 4 -> 25MB from each 10GB on HDD
-		for (int i = 0; i < _HDD_10GB_count; i++)
+
+		int recordPerBucket = 8000;	 // TODO: now is write die
+		for (int i = 0; i < 12; i++) // TODO: now is write die
 		{
-			DataRecord *records = new DataRecord[25000]();
-			for (int k = 0; k < 25000; k++)
+			DataRecord *records = new DataRecord[recordPerBucket](); // 8MB / 1000 = 8000
+			for (int k = 0; k < recordPerBucket; k++)
 			{
 				char row[REC_SIZE];
 				_inputFiles[i]->read(row, sizeof(row));
@@ -561,15 +566,15 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 			dataRecords.push_back(records);
 		}
 
-		int sizeOfBucket = 25000; // how many records are there in each of Dram's buckets
+		int sizeOfBucket = recordPerBucket; // how many records are there in each of Dram's buckets
 		int const numOfbuckets = _HDD_10GB_count;
-		int copyNum = numOfbuckets;
+		int copyNum = numOfbuckets; // 12
 		int targetlevel = 0;
 		while (copyNum >>= 1)
 			++targetlevel;
 
 		if (!isPowerOfTwo(numOfbuckets))
-			targetlevel++;
+			targetlevel++; // 4
 
 		// initialized to 0; stores pointer to the next record to be pushed for the leaf
 		int *hashtable = new int[numOfbuckets]();
@@ -665,10 +670,10 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 			if (count == _consumed - 1)
 				break;
 
-			// %1000 == 0 means current 25MB bucket has 1MB (1000 records) outputted
+			// %1000 == 0 means current 8MB bucket has 1MB (1000 records) outputted
 			// from HDD input another 1MB
-			// 10GB is 10,000,000 records; the first 25,000 records was in the initialization of Dram
-			if (cntPerBucket[idx] % 1000 == 0 && cntPerBucket[idx] <= 9975000)
+			// 10GB is 10,000,000 records; the first 8,000 records was in the initialization of Dram
+			if (cntPerBucket[idx] % 1000 == 0 && cntPerBucket[idx] <= 9992000)
 			{
 				// read 1MB = 1000 records from HDD
 				DataRecord *inner = dataRecords.at(idx);
@@ -696,8 +701,8 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 					inner[startToFillPointer++] = record;
 				}
 			}
-			// current 25MB bucket in Dram is empty, and there are records left in the 10GB bucket: assign the pointer back to the beginning of the bucket
-			if (hashtable[idx] == 24999 && cntPerBucket[idx] <= 10000000)
+			// current 8MB bucket in Dram is empty, and there are records left in the 10GB bucket: assign the pointer back to the beginning of the bucket
+			if (hashtable[idx] == 7999 && cntPerBucket[idx] <= 10000000)
 			{
 				// std::cout << "------external phase 1 debug 8---------" << std::endl;
 				// std::cout << "idx:"<< idx << ", cntPerBucket[idx]:" << cntPerBucket[idx] << std::endl;

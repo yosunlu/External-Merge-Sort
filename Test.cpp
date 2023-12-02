@@ -160,7 +160,7 @@ int main(int argc, char *argv[])
 	/***********************************************************/
 
 	// genDataRecords will store a single 10GB unsorted file in input/input.txt
-	genDataRecords(numOfRecord); // 10GB data = 1000 * 100 * 100 records = 10,000,000 records
+	genDataRecords(numOfRecord); // 120GB / 1KB = 120,000,000 records
 
 	// create a pointer to that 10GB * numOf10GBs unsorted file
 	std::ifstream *inputFile = new std::ifstream("input/input.txt", std::ios::binary);
