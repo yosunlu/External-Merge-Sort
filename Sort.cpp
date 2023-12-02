@@ -373,7 +373,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 			{
 				DataRecord *inner = dataRecords.at(idx);
 				// idx tells which leaf; hashtable[idx] returns the next pointer to the record
-				DataRecord output_record = inner[hashtable[idx]];
+				DataRecord output_record(inner[hashtable[idx]]);
 				// add to the output buffer
 				outputBuf[outputBufCnt++] = output_record;
 			}
@@ -556,7 +556,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 
 				// Creating a DataRecord
 				DataRecord record(incl, mem, mgmt);
-				records[k++] = record;
+				records[k] = record;
 			}
 			dataRecords.push_back(records);
 		}
