@@ -152,127 +152,134 @@ int main(int argc, char *argv[])
 		std::cerr << "Path exists but is not a directory." << std::endl;
 	}
 
-	// create records that will be saved in the input file
-
-	// assuming 10GB data; 1KB (per record) * 1000 (quicksort these  1000 record, 1MB) * 100 (total 100MB) * 100 = 10G
-	// int numBatch = numOfRecord / 1000;
-
-	genDataRecords(numOfRecord); // 10GB data = 1000 * 100 * 100 records = 10,000,000 records
-								 // genDataRecords will store a single 10GB unsorted file in input/input.txt
-
-	std::vector<std::ifstream *> inputFiles;
-
-	// create a pointer to that 10GB * numOf10GBs unsorted file
-	std::ifstream inputFile("input/input.txt", std::ios::binary);
-	if (!inputFile.is_open())
-		std::cerr << "Error opening input file." << std::endl;
-
-	inputFiles.push_back(&inputFile);
-
 	int numOf10GBs = numOfRecord / 10000000; // how many 10GB file to be generated
+	std::vector<std::ifstream *> inputFiles; // stores the input pointers of file streams
 
-	// each iteration will create a 10GB sorted file to HDD
-	for (int s = 0; s < numOf10GBs; ++s)
-	{
-		// each iteration will create a sorted 100MB file to SSD
-		for (int i = 0; i < 100; i++) // 100 * 100MB dataRecords
-		{
-			// each iteration will push_back one pointer to 1000 records to dataRecords;
-			// when the for loop ends, there will be one dataRecord which is 100MB
-			for (int j = 0; j < 100; ++j)
-			{
-				Plan *const plan = new SortPlan(new ScanPlan(1000), RUN_PHASE_1, inputFiles, 0, 0); // quick sort 1MB of data and repeat 100 times
-				Iterator *const it = plan->init();
-				it->run();
+	/***********************************************************/
+	/***Starting line of commenting out for external phase 2****/
+	/***********************************************************/
 
-				delete it;
-				delete plan;
-			}
+	// create records that will be saved in the input file
+	// genDataRecords(numOfRecord); // 10GB data = 1000 * 100 * 100 records = 10,000,000 records
+	// genDataRecords will store a single 10GB unsorted file in input/input.txt
 
-			Plan *const plan = new SortPlan(new ScanPlan(100000), RUN_PHASE_2, inputFiles, i, 0); // 100000 record is 100MB
-			Iterator *const it = plan->init();
-			it->run();
+	// // create a pointer to that 10GB * numOf10GBs unsorted file
+	// std::ifstream inputFile("input/input.txt", std::ios::binary);
+	// if (!inputFile.is_open())
+	// 	std::cerr << "Error opening input file." << std::endl;
 
-			for (int i = 0; i < 100; ++i)
-			{
-				delete[] dataRecords[i];
-			}
+	// inputFiles.push_back(&inputFile);
 
-			dataRecords.clear();
+	// // each iteration will create a 10GB sorted file to HDD
+	// for (int s = 0; s < numOf10GBs; ++s)
+	// {
+	// 	// each iteration will create a sorted 100MB file to SSD
+	// 	for (int i = 0; i < 100; i++) // 100 * 100MB dataRecords
+	// 	{
+	// 		// each iteration will push_back one pointer to 1000 records to dataRecords;
+	// 		// when the for loop ends, there will be one dataRecord which is 100MB
+	// 		for (int j = 0; j < 100; ++j)
+	// 		{
+	// 			Plan *const plan = new SortPlan(new ScanPlan(1000), RUN_PHASE_1, inputFiles, 0, 0); // quick sort 1MB of data and repeat 100 times
+	// 			Iterator *const it = plan->init();
+	// 			it->run();
 
-			delete it;
-			delete plan;
-		}
+	// 			delete it;
+	// 			delete plan;
+	// 		}
 
-		// external sort phase 1
-		// merge 100 * 100MB on SSD to a 10GB on HDD
-		// inputFiles[1] ~ inputFiles[100]
+	// 		Plan *const plan = new SortPlan(new ScanPlan(100000), RUN_PHASE_2, inputFiles, i, 0); // 100000 record is 100MB
+	// 		Iterator *const it = plan->init();
+	// 		it->run();
 
-		// make the 100 outputs from last for loop the new inputs
-		for (int i = 0; i < 100; i++)
-		{
-			std::stringstream filename;
-			filename << "SSD-10GB/output_" << i << ".txt";
-			std::ifstream *newInputFile = new std::ifstream(filename.str(), std::ios::binary);
+	// 		for (int i = 0; i < 100; ++i)
+	// 		{
+	// 			delete[] dataRecords[i];
+	// 		}
 
-			if (!newInputFile->is_open())
-				std::cerr << "Error opening input file." << std::endl;
+	// 		dataRecords.clear();
 
-			inputFiles.push_back(newInputFile);
-		}
+	// 		delete it;
+	// 		delete plan;
+	// 	}
 
-		Plan *const plan = new SortPlan(new ScanPlan(10000000), EXTERNAL_PHASE_1, inputFiles, 0, s);
-		Iterator *const it = plan->init();
-		it->run();
+	// 	// external sort phase 1
+	// 	// merge 100 * 100MB on SSD to a 10GB on HDD
+	// 	// inputFiles[1] ~ inputFiles[100]
 
-		for (int i = 0; i < 100; ++i)
-		{
-			delete[] dataRecords[i];
-		}
+	// 	// make the 100 outputs from last for loop the new inputs
+	// 	for (int i = 0; i < 100; i++)
+	// 	{
+	// 		std::stringstream filename;
+	// 		filename << "SSD-10GB/output_" << i << ".txt";
+	// 		std::ifstream *newInputFile = new std::ifstream(filename.str(), std::ios::binary);
+	// 		traceprintf("%i\n", s);
 
-		dataRecords.clear();
+	// 		if (!newInputFile->is_open())
+	// 			std::cerr << "Error opening input file." << std::endl;
 
-		delete it;
-		delete plan;
+	// 		inputFiles.push_back(newInputFile);
+	// 	}
 
-		// after outputting the 100 * 100MB (10GB) sorted file to HDD, clear the SSD
-		for (int fileCount = 0; fileCount < 100; ++fileCount)
-		{
-			std::stringstream filename;
-			filename << "SSD-10GB/output_" << fileCount << ".txt";
+	// 	Plan *const plan = new SortPlan(new ScanPlan(10000000), EXTERNAL_PHASE_1, inputFiles, 0, s);
+	// 	Iterator *const it = plan->init();
+	// 	it->run();
 
-			// Convert the stringstream to a string and then to a path
-			std::string file_to_delete = filename.str();
+	// 	for (int i = 0; i < 100; ++i)
+	// 	{
+	// 		delete[] dataRecords[i];
+	// 	}
 
-			if (std::remove(file_to_delete.c_str()) != 0)
-				perror("Error deleting file");
-			delete inputFiles[fileCount+1];
-			inputFiles.pop_back();
-		}
-	}
+	// 	dataRecords.clear();
 
-	// external sort phase 2
-	// clear the inputFiles vector and free the memory
+	// 	delete it;
+	// 	delete plan;
+
+	// 	// after outputting the 100 * 100MB (10GB) sorted file to HDD, clear the SSD
+	// 	for (int fileCount = 0; fileCount < 100; ++fileCount)
+	// 	{
+	// 		std::stringstream filename;
+	// 		filename << "SSD-10GB/output_" << fileCount << ".txt";
+
+	// 		// Convert the stringstream to a string and then to a path
+	// 		std::string file_to_delete = filename.str();
+
+	// 		if (std::remove(file_to_delete.c_str()) != 0)
+	// 			perror("Error deleting file");
+	// 		delete inputFiles[fileCount + 1];
+	// 		inputFiles.pop_back();
+	// 	}
+	// }
+
+	// // pop-back the 0th large input file (120GB)
+	// // inputFiles.pop_back();
+
+	// // external sort phase 2
+	// // clear the inputFiles vector and free the memory
 	// for (std::ifstream *ptr : inputFiles)
 	// 	delete ptr; // Delete the object pointed to by the pointer
 	// inputFiles.clear();
 
-	// // make the 10GB outputs from previous phase new inputs
-	// for (int i = 0; i < numOf10GBs; i++)
-	// {
-	// 	std::stringstream filename;
-	// 	filename << "HDD/output_10GB_" << i << ".txt";
-	// 	std::ifstream *newInputFile = new std::ifstream(filename.str(), std::ios::binary);
+	/*********************************************************/
+	/***Ending line of commenting out for external phase 2****/
+	/*********************************************************/
 
-	// 	if (!newInputFile->is_open())
-	// 		std::cerr << "Error opening input file." << std::endl;
+	// make the 10GB outputs from previous phase new inputs
+	for (int i = 0; i < numOf10GBs; i++)
+	{
+		std::stringstream filename;
+		filename << "HDD/output_10GB_" << i << ".txt";
+		std::ifstream *newInputFile = new std::ifstream(filename.str(), std::ios::binary);
 
-	// 	inputFiles.push_back(newInputFile);
-	// }
+		if (!newInputFile->is_open())
+			std::cerr << "Error opening input file." << std::endl;
 
-	// Plan *const plan = new SortPlan(new ScanPlan(numOfRecord), EXTERNAL_PHASE_2, inputFiles, 0, numOf10GBs);
-	// Iterator *const it = plan->init();
-	// it->run();
+		inputFiles.push_back(newInputFile);
+	}
+
+	Plan *const plan = new SortPlan(new ScanPlan(numOfRecord), EXTERNAL_PHASE_2, inputFiles, 0, numOf10GBs);
+	Iterator *const it = plan->init();
+	it->run();
 
 	closeInputFiles(inputFiles);
 
