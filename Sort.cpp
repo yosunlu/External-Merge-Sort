@@ -418,7 +418,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 				for (int j = 0; j < 8; j++)
 				{
 					char row[REC_SIZE];
-					_inputFiles[idx]->read(row, sizeof(row));
+					_inputFiles[idx + 1]->read(row, sizeof(row));
 					row[sizeof(row) - 2] = '\0'; // last 2 bytes are newline characters
 					// Extracting data from the row
 					char incl[333], mem[333], mgmt[333];
@@ -678,7 +678,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 				for (int j = 0; j < 1000; j++)
 				{
 					char row[REC_SIZE];
-					_inputFiles[idx + 1]->read(row, sizeof(row));
+					_inputFiles[idx]->read(row, sizeof(row));
 					row[sizeof(row) - 2] = '\0'; // last 2 bytes are newline characters
 					// Extracting data from the row
 					char incl[333], mem[333], mgmt[333];
