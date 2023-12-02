@@ -55,7 +55,7 @@ int main()
 
     inputFile.close();
 
-    std::ifstream outputFile("../HDD/output_10GB.txt", std::ios::binary);
+    std::ifstream outputFile("../HDD/final_output.txt", std::ios::binary);
 
     if (!outputFile.is_open())
     {

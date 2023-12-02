@@ -159,106 +159,143 @@ int main(int argc, char *argv[])
 	/***Starting line of commenting out for external phase 2****/
 	/***********************************************************/
 
-	// // create records that will be saved in the input file
-	// genDataRecords(numOfRecord); // 10GB data = 1000 * 100 * 100 records = 10,000,000 records
-	// // genDataRecords will store a single 10GB unsorted file in input/input.txt
+	// genDataRecords will store a single 10GB unsorted file in input/input.txt
+	genDataRecords(numOfRecord); // 10GB data = 1000 * 100 * 100 records = 10,000,000 records
 
-	// // create a pointer to that 10GB * numOf10GBs unsorted file
-	// std::ifstream inputFile("input/input.txt", std::ios::binary);
-	// if (!inputFile.is_open())
+	// create a pointer to that 10GB * numOf10GBs unsorted file
+	std::ifstream *inputFile = new std::ifstream("input/input.txt", std::ios::binary);
+	if (!inputFile->is_open())
+		std::cerr << "Error opening input file." << std::endl;
+
+	inputFiles.push_back(inputFile);
+
+	// each iteration will create a 10GB sorted file to HDD
+	for (int s = 0; s < numOf10GBs; ++s)
+	{
+		// each iteration will create a sorted 100MB file to SSD
+		for (int i = 0; i < 100; i++) // 100 * 100MB dataRecords
+		{
+			// each iteration will push_back one pointer to 1000 records to dataRecords;
+			// when the for loop ends, there will be one dataRecord which is 100MB
+			for (int j = 0; j < 100; ++j)
+			{
+				Plan *const plan = new SortPlan(new ScanPlan(1000), RUN_PHASE_1, inputFiles, 0, 0); // quick sort 1MB of data and repeat 100 times
+				Iterator *const it = plan->init();
+				it->run();
+
+				delete it;
+				delete plan;
+			}
+
+			Plan *const plan = new SortPlan(new ScanPlan(100000), RUN_PHASE_2, inputFiles, i, 0); // 100000 record is 100MB
+			Iterator *const it = plan->init();
+			it->run();
+
+			for (int i = 0; i < 100; ++i)
+			{
+				delete[] dataRecords[i];
+			}
+
+			dataRecords.clear();
+
+			delete it;
+			delete plan;
+		}
+
+		// external sort phase 1
+		// merge 100 * 100MB on SSD to a 10GB on HDD
+		// inputFiles[1] ~ inputFiles[100]
+
+		// make the 100 outputs from last for loop the new inputs
+		for (int i = 0; i < 100; i++)
+		{
+			std::stringstream filename;
+			filename << "SSD-10GB/output_" << i << ".txt";
+			std::ifstream *newInputFile = new std::ifstream(filename.str(), std::ios::binary);
+			traceprintf("%i\n", s);
+
+			if (!newInputFile->is_open())
+				std::cerr << "Error opening input file." << std::endl;
+
+			inputFiles.push_back(newInputFile);
+		}
+
+		Plan *const plan = new SortPlan(new ScanPlan(10000000), EXTERNAL_PHASE_1, inputFiles, 0, s);
+		Iterator *const it = plan->init();
+		it->run();
+
+		for (int i = 0; i < 100; ++i)
+		{
+			delete[] dataRecords[i];
+		}
+
+		dataRecords.clear();
+
+		delete it;
+		delete plan;
+
+		// after outputting the 100 * 100MB (10GB) sorted file to HDD, clear the SSD
+		for (int fileCount = 0; fileCount < 100; ++fileCount)
+		{
+			std::stringstream filename;
+			filename << "SSD-10GB/output_" << fileCount << ".txt";
+
+			// Convert the stringstream to a string and then to a path
+			std::string file_to_delete = filename.str();
+
+			if (std::remove(file_to_delete.c_str()) != 0)
+				perror("Error deleting file");
+			delete inputFiles[fileCount + 1];
+			inputFiles.pop_back();
+		}
+	}
+
+	//******debugging*********//
+
+	// std::ifstream *inputFile = new std::ifstream("SSD-10GB/input.txt", std::ios::binary);
+	// if (!inputFile->is_open())
 	// 	std::cerr << "Error opening input file." << std::endl;
 
-	// inputFiles.push_back(&inputFile);
+	// inputFiles.push_back(inputFile);
 
-	// // each iteration will create a 10GB sorted file to HDD
-	// for (int s = 0; s < numOf10GBs; ++s)
+	// for (int i = 0; i < 100; i++)
 	// {
-	// 	// each iteration will create a sorted 100MB file to SSD
-	// 	for (int i = 0; i < 100; i++) // 100 * 100MB dataRecords
-	// 	{
-	// 		// each iteration will push_back one pointer to 1000 records to dataRecords;
-	// 		// when the for loop ends, there will be one dataRecord which is 100MB
-	// 		for (int j = 0; j < 100; ++j)
-	// 		{
-	// 			Plan *const plan = new SortPlan(new ScanPlan(1000), RUN_PHASE_1, inputFiles, 0, 0); // quick sort 1MB of data and repeat 100 times
-	// 			Iterator *const it = plan->init();
-	// 			it->run();
+	// 	std::stringstream filename;
+	// 	filename << "SSD-10GB/output_" << i << ".txt";
+	// 	std::ifstream *newInputFile = new std::ifstream(filename.str(), std::ios::binary);
 
-	// 			delete it;
-	// 			delete plan;
-	// 		}
+	// 	if (!newInputFile->is_open())
+	// 		std::cerr << "Error opening input file." << std::endl;
 
-	// 		Plan *const plan = new SortPlan(new ScanPlan(100000), RUN_PHASE_2, inputFiles, i, 0); // 100000 record is 100MB
-	// 		Iterator *const it = plan->init();
-	// 		it->run();
-
-	// 		for (int i = 0; i < 100; ++i)
-	// 		{
-	// 			delete[] dataRecords[i];
-	// 		}
-
-	// 		dataRecords.clear();
-
-	// 		delete it;
-	// 		delete plan;
-	// 	}
-
-	// 	// external sort phase 1
-	// 	// merge 100 * 100MB on SSD to a 10GB on HDD
-	// 	// inputFiles[1] ~ inputFiles[100]
-
-	// 	// make the 100 outputs from last for loop the new inputs
-	// 	for (int i = 0; i < 100; i++)
-	// 	{
-	// 		std::stringstream filename;
-	// 		filename << "SSD-10GB/output_" << i << ".txt";
-	// 		std::ifstream *newInputFile = new std::ifstream(filename.str(), std::ios::binary);
-	// 		traceprintf("%i\n", s);
-
-	// 		if (!newInputFile->is_open())
-	// 			std::cerr << "Error opening input file." << std::endl;
-
-	// 		inputFiles.push_back(newInputFile);
-	// 	}
-
-	// 	Plan *const plan = new SortPlan(new ScanPlan(10000000), EXTERNAL_PHASE_1, inputFiles, 0, s);
-	// 	Iterator *const it = plan->init();
-	// 	it->run();
-
-	// 	for (int i = 0; i < 100; ++i)
-	// 	{
-	// 		delete[] dataRecords[i];
-	// 	}
-
-	// 	dataRecords.clear();
-
-	// 	delete it;
-	// 	delete plan;
-
-	// 	// after outputting the 100 * 100MB (10GB) sorted file to HDD, clear the SSD
-	// 	for (int fileCount = 0; fileCount < 100; ++fileCount)
-	// 	{
-	// 		std::stringstream filename;
-	// 		filename << "SSD-10GB/output_" << fileCount << ".txt";
-
-	// 		// Convert the stringstream to a string and then to a path
-	// 		std::string file_to_delete = filename.str();
-
-	// 		if (std::remove(file_to_delete.c_str()) != 0)
-	// 			perror("Error deleting file");
-	// 		delete inputFiles[fileCount + 1];
-	// 		inputFiles.pop_back();
-	// 	}
+	// 	inputFiles.push_back(newInputFile);
 	// }
 
-	// // pop-back the 0th large input file (120GB)
-	// inputFiles.pop_back();
+	// for (int fileCount = 0; fileCount < 100; ++fileCount)
+	// {
+	// 	std::stringstream filename;
+	// 	filename << "SSD-10GB/output_" << fileCount << ".txt";
 
-	// // external sort phase 2
-	// // clear the inputFiles vector and free the memory
-	// for (std::ifstream *ptr : inputFiles)
-	// 	delete ptr; // Delete the object pointed to by the pointer
-	// inputFiles.clear();
+	// 	// Convert the stringstream to a string and then to a path
+	// 	std::string file_to_delete = filename.str();
+
+	// 	if (std::remove(file_to_delete.c_str()) != 0)
+	// 		perror("Error deleting file");
+	// 	delete inputFiles[fileCount + 1];
+	// 	inputFiles.pop_back();
+	// }
+
+	//******debugging ends*********//
+
+	closeInputFiles(inputFiles);
+
+	// delete the large 120GB file
+	delete inputFiles[0];
+	// pop-back the 0th large input file (120GB)
+
+	inputFiles.pop_back();
+	// external sort phase 2
+	// clear the inputFiles vector and free the memory
+	inputFiles.clear();
 
 	/*********************************************************/
 	/***Ending line of commenting out for external phase 2****/
@@ -282,11 +319,11 @@ int main(int argc, char *argv[])
 	it->run();
 
 	closeInputFiles(inputFiles);
-	for (std::ifstream *ptr : inputFiles)
-		delete ptr; // Delete the object pointed to by the pointer
-
-	// Plan *const plan = new FilterPlan(new ScanPlan(7));
-	// new SortPlan(new FilterPlan(new ScanPlan(7)));
+	for (int i = 0; i < numOf10GBs; ++i)
+	{
+		delete inputFiles[i];
+		inputFiles.pop_back();
+	}
 
 	// SortPlan has private attribute _input, which is intialized to a ScanPlan.
 	// In SortPlan 's init(), a SortIterator(this) is constructed and returned.

@@ -633,7 +633,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 			{
 				DataRecord *inner = dataRecords.at(idx); // inner is a pointer to 1000 records, each 1kb; dataRecords store 100 such pointers
 				// idx tells which leaf; hashtable[idx] returns the next pointer to the record
-				DataRecord output_record = inner[hashtable[idx]];
+				DataRecord output_record(inner[hashtable[idx]]);
 				// add to the output buffer
 				outputBuf[outputBufCnt++] = output_record;
 			}
