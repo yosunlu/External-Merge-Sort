@@ -418,7 +418,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 				for (int j = 0; j < 8; j++)
 				{
 					char row[REC_SIZE];
-					_inputFiles[idx + 1]->read(row, sizeof(row));
+					_inputFiles[idx]->read(row, sizeof(row));
 					row[sizeof(row) - 2] = '\0'; // last 2 bytes are newline characters
 					// Extracting data from the row
 					char incl[333], mem[333], mgmt[333];
@@ -534,7 +534,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 	else if (_plan->_state == EXTERNAL_PHASE_2)
 	{
 		// fan-in will be (100MB / _HDD_10GB_count)
-		// assuming 40GB file: 100MB / 4 -> 25MB from each 1GB on SDD
+		// assuming 40GB file: 100MB / 4 -> 25MB from each 10GB on HDD
 		for (int i = 0; i < _HDD_10GB_count; i++)
 		{
 			DataRecord *records = new DataRecord[25000]();
