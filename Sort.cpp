@@ -108,22 +108,25 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 	}
 	else if (_plan->_state == RUN_PHASE_2)
 	{
-		// 1000 records per bucket
-		int sizeOfBucket = 1000;
-		int const buckets = _consumed / 1000; // _consumed = 100000
-		int copyNum = buckets;				  // copyNum = buckets = 100
+
+		int sizeOfBucket = 1000; // 1000 records per bucket
+		int numRecord_leftOverOf1MB = _consumed % 1000;
+		int const buckets = dataRecords.size();
+		int copyNum = buckets; // copyNum = buckets = 100
 		int targetlevel = 0;
+
+		// table to store the number of records for each buckets
+		// useful when there are leftovers (32 * 1000 records, and 1 * 500 records)
+		int *bucketSizeTable = new int[buckets]();
+		for (int i = 0; i < buckets - 1; i++)
+			bucketSizeTable[i] = 1000;
+		bucketSizeTable[buckets - 1] = numRecord_leftOverOf1MB ? numRecord_leftOverOf1MB : 1000;
+
 		while (copyNum >>= 1)
 			++targetlevel;
 
 		if (!isPowerOfTwo(buckets))
 			targetlevel++;
-
-		// traceprintf("buckets: %lu\n", buckets);
-
-		// Resize the leaf vector
-		// numOfBucket = buckets;
-		// leaf.resize(numOfBucket, std::vector<char>(sizeOfColumn));
 
 		int *hashtable = new int[buckets](); // initializes to 0; stores pointer to the next record to be pushed for the leaf
 		// buckets from Dram
@@ -150,14 +153,22 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 
 		// input is 100,000 records; if each leaf (bucket) contains 1000 records, we only need 100 buckets;
 		// for the leftover buckets, fill in late fence and push
-		if (buckets < priorityQueue.capacity()) // capacity = 128
+		if (buckets < priorityQueue.capacity())
 		{
 			for (int i = buckets; i < priorityQueue.capacity(); i++)
 				priorityQueue.push(i, priorityQueue.late_fence());
 		}
 
 		std::stringstream filename;
-		filename << "SSD-10GB/output_" << _fileCount << ".txt";
+		if (_consumed == 100000)
+		{ // more than 10GB size records
+			filename << "SSD-10GB/output_" << _fileCount << ".txt";
+		}
+		else if (_consumed < 100000)
+		{ // less than 100MB size records
+			filename << "HDD/final_output"
+					 << ".txt";
+		}
 
 		std::ofstream outputFile(filename.str(), std::ios::binary | std::ios::app); // std::ios::app for appending
 		traceprintf("%s\n", filename.str().c_str());
@@ -165,15 +176,11 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 			std::cerr << "Error opening output file." << std::endl;
 
 		int count = 0; // current count of the records being popped
-		while (count < buckets * sizeOfBucket)
+		while (count < _consumed)
 		{
 			int idx = priorityQueue.pop();
 			if (idx == -1)
-			{
 				break;
-			}
-			// std::strcpy(output[count], ::data[idx]);
-			// std::strcpy(output[count], ::leaf[idx].data());
 
 			// write to output file
 			// inner is a pointer to 1000 records, each 1kb
@@ -187,9 +194,9 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 			outputFile.write(output_record.getMgmt(), 332);
 			outputFile.write("\r\n", 2);
 
-			if (count == buckets * sizeOfBucket - 1)
+			if (count == _consumed - 1)
 				break;
-			if (hashtable[idx] < sizeOfBucket - 1) // check if there are record left in the bucket
+			if (hashtable[idx] < bucketSizeTable[idx] - 1) // check if there are record left in the bucket
 			{
 				char preVal[sizeOfColumn + 1];
 
@@ -254,10 +261,17 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 
 		outputFile.close();
 	}
+
+	/***************************************/
+	/*********External Phase 1**************/
+	/***************************************/
+
 	else if (_plan->_state == EXTERNAL_PHASE_1)
 	{
+		int numOf100MBruns = _consumed / 100000;
+
 		// read the 1MB from each 100MB on SSD
-		for (int i = 1; i < 101; i++)
+		for (int i = 1; i < numOf100MBruns; i++)
 		{
 			DataRecord *records = new DataRecord[1000]();
 			for (int j = 0; j < 1000; j++)
@@ -539,8 +553,13 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 	{
 		// fan-in will be (100MB / _HDD_10GB_count)
 
-		int recordPerBucket = 8000;	 // TODO: now is write die
-		for (int i = 0; i < 12; i++) // TODO: now is write die
+		int const numOfbuckets = _HDD_10GB_count; // 12
+		int recordPerBucket = 100 / numOfbuckets * 1000;
+		// 120GB: (100 / 12) * 1000 records = 8MB * 1000 = 8MB; 8MB * 12 (buckets) = 96MB (4MB wasted for dram's 100MB)
+		// 110GB: (100 / 11) * 1000 records = 9MB * 1000 = 9MB; 9MB * 11 (buckets) = 99MB (1MB wasted for dram's 100MB)
+		int sizeOfBucket = recordPerBucket; // How many records are there in each of Dram's buckets
+
+		for (int i = 0; i < _HDD_10GB_count; i++) //
 		{
 			DataRecord *records = new DataRecord[recordPerBucket](); // 8MB / 1000 = 8000
 			for (int k = 0; k < recordPerBucket; k++)
@@ -566,15 +585,13 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 			dataRecords.push_back(records);
 		}
 
-		int sizeOfBucket = recordPerBucket; // how many records are there in each of Dram's buckets
-		int const numOfbuckets = _HDD_10GB_count;
-		int copyNum = numOfbuckets; // 12
+		int copyNum = numOfbuckets;
 		int targetlevel = 0;
 		while (copyNum >>= 1)
 			++targetlevel;
 
 		if (!isPowerOfTwo(numOfbuckets))
-			targetlevel++; // 4
+			targetlevel++;
 
 		// initialized to 0; stores pointer to the next record to be pushed for the leaf
 		int *hashtable = new int[numOfbuckets]();
@@ -673,7 +690,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 			// %1000 == 0 means current 8MB bucket has 1MB (1000 records) outputted
 			// from HDD input another 1MB
 			// 10GB is 10,000,000 records; the first 8,000 records was in the initialization of Dram
-			if (cntPerBucket[idx] % 1000 == 0 && cntPerBucket[idx] <= 9992000)
+			if (cntPerBucket[idx] % 1000 == 0 && cntPerBucket[idx] <= 10000000 - recordPerBucket) // 9,992,000
 			{
 				// read 1MB = 1000 records from HDD
 				DataRecord *inner = dataRecords.at(idx);
@@ -702,7 +719,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 				}
 			}
 			// current 8MB bucket in Dram is empty, and there are records left in the 10GB bucket: assign the pointer back to the beginning of the bucket
-			if (hashtable[idx] == 7999 && cntPerBucket[idx] <= 10000000)
+			if (hashtable[idx] == recordPerBucket - 1 && cntPerBucket[idx] <= 10000000)
 			{
 				// std::cout << "------external phase 1 debug 8---------" << std::endl;
 				// std::cout << "idx:"<< idx << ", cntPerBucket[idx]:" << cntPerBucket[idx] << std::endl;

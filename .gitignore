@@ -33,3 +33,5 @@
 
 # Text files
 *.txt
+
+.vscode
