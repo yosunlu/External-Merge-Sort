@@ -320,7 +320,7 @@ int main(int argc, char *argv[])
 	/***** The case above is input size larger than 10GB; TODO: 12.5GB not considered yet*****/
 
 	/****** Input size smaller than 10GB but larger than 100MB*****/
-	if (numOfRecord >= 100000) // 100000 records is 100MB
+	if (numOfRecord >= 100000 && numOfRecord < 10000000) // 100000 records is 100MB
 	{
 		// for example: 300MB = 300,000 records
 		int numOf100MBruns = numRecord_leftOverOf10GB / 100000; // 3

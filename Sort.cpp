@@ -271,7 +271,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		int numOf100MBruns = _consumed / 100000;
 
 		// read the 1MB from each 100MB on SSD
-		for (int i = 1; i < numOf100MBruns; i++)
+		for (int i = 1; i < numOf100MBruns + 1; i++)
 		{
 			DataRecord *records = new DataRecord[1000]();
 			for (int j = 0; j < 1000; j++)
