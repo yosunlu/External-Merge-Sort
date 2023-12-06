@@ -266,9 +266,14 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 	/*********External Phase 1**************/
 	/***************************************/
 
+	// merges 100*100MB (10GB) runs from SSD to HDD
 	else if (_plan->_state == EXTERNAL_PHASE_1)
 	{
 		int numOf100MBruns = _consumed / 100000;
+		// if handling 10GB's leftover, for example 2GB in 12GB
+		// 12GB is 120,000,000; devided it by 10GB size of record
+		// this 2GB will become another HDD output
+		int singleDigitGBleft = _consumed % 10000000 == 0 ? 0 : 1;
 
 		// read the 1MB from each 100MB on SSD
 		for (int i = 1; i < numOf100MBruns + 1; i++)
@@ -303,8 +308,8 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		// 8KB = 8 records
 		// 8 * 125 records per bucket
 		int sizeOfBucket = 1000;
-		int const buckets = 100; // 100MB/1MB = 100 = fan-in
-		int copyNum = buckets;	 // copyNum = buckets = 100
+		int const buckets = numOf100MBruns; // 100MB/1MB = 100 = fan-in
+		int copyNum = buckets;				// copyNum = buckets = 100
 		int targetlevel = 0;
 		while (copyNum >>= 1)
 			++targetlevel;
@@ -319,8 +324,6 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 
 		// for how many records already output from each bucket
 		int *cntPerBucket = new int[buckets]();
-
-		// int *cnt1MBPerBucket = new int[buckets]();
 
 		// already push 1 record from each bucket, thus init this array with 1
 		for (int i = 0; i < buckets; ++i)
@@ -360,8 +363,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		}
 
 		std::stringstream HDD_file;
-		HDD_file << "HDD/output_10GB_" << _HDD_10GB_count << ".txt";
-		// filename << "SSD-10GB/output_" << _fileCount << ".txt";
+		HDD_file << "HDD/output_10GB_" << _HDD_10GB_count + singleDigitGBleft << ".txt";
 
 		std::ofstream outputFile(HDD_file.str(), std::ios::binary | std::ios::app); // std::ios::app for appending
 		if (!outputFile.is_open())
@@ -393,7 +395,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 			}
 			else
 			{
-				// if output buffer have 1000 records(1MB)
+				// if output buffer has 1000 records (1MB)
 				// write to HDD
 				for (int i = 0; i < 1000; i++)
 				{
@@ -449,10 +451,6 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 					DataRecord record(incl, mem, mgmt);
 					inner[startToFillPointer++] = record;
 				}
-
-				// if(curHtPointer == 999) {
-				// 	cnt1MBPerBucket[idx]++;
-				// }
 			}
 			// current 1MB bucket in Dram is empty, and there are records left in the 100MB: assign the pointer back to the beginning of the bucket
 			if (hashtable[idx] == 999 && cntPerBucket[idx] <= 100000)
@@ -551,15 +549,23 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 
 	else if (_plan->_state == EXTERNAL_PHASE_2)
 	{
-		// fan-in will be (100MB / _HDD_10GB_count)
-
-		int const numOfbuckets = _HDD_10GB_count; // 12
+		// check if there's data between 1-10GB left, for example 12.5GB
+		int singleDigitGBleft = _consumed % 10000000 == 0 ? 0 : 1;
+		int const numOfbuckets = _HDD_10GB_count + singleDigitGBleft; // 12
 		int recordPerBucket = 100 / numOfbuckets * 1000;
-		// 120GB: (100 / 12) * 1000 records = 8MB * 1000 = 8MB; 8MB * 12 (buckets) = 96MB (4MB wasted for dram's 100MB)
-		// 110GB: (100 / 11) * 1000 records = 9MB * 1000 = 9MB; 9MB * 11 (buckets) = 99MB (1MB wasted for dram's 100MB)
+		// 120GB: (100 / 12) * 1000 records = 8MB  = 8MB; 8MB * 12 (buckets) = 96MB (4MB wasted for dram's 100MB)
+		// 110GB: (100 / 11) * 1000 records = 9MB  = 9MB; 9MB * 11 (buckets) = 99MB (1MB wasted for dram's 100MB)
+		// 12.5GB: (100 / 2) * 1000 records = 50MB = 50mb; 50MB * 2 (buckets) = 100MB
 		int sizeOfBucket = recordPerBucket; // How many records are there in each of Dram's buckets
 
-		for (int i = 0; i < _HDD_10GB_count; i++) //
+		// table to store the number of records for each buckets
+		// useful when there are leftovers (32 * 1000 records, and 1 * 500 records)
+		int *bucketTotalSizeTable = new int[numOfbuckets]();
+		for (int i = 0; i < numOfbuckets - 1; i++)
+			bucketTotalSizeTable[i] = 10000000; // for normal 10GB sorted file in HDD, size is 10000000
+		bucketTotalSizeTable[numOfbuckets - 1] = singleDigitGBleft ? _consumed % 10000000 : 10000000;
+
+		for (int i = 0; i < numOfbuckets; i++) // input data from HDD to dram
 		{
 			DataRecord *records = new DataRecord[recordPerBucket](); // 8MB / 1000 = 8000
 			for (int k = 0; k < recordPerBucket; k++)
@@ -690,7 +696,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 			// %1000 == 0 means current 8MB bucket has 1MB (1000 records) outputted
 			// from HDD input another 1MB
 			// 10GB is 10,000,000 records; the first 8,000 records was in the initialization of Dram
-			if (cntPerBucket[idx] % 1000 == 0 && cntPerBucket[idx] <= 10000000 - recordPerBucket) // 9,992,000
+			if (cntPerBucket[idx] % 1000 == 0 && cntPerBucket[idx] <= bucketTotalSizeTable[idx] - recordPerBucket) // 9,992,000
 			{
 				// read 1MB = 1000 records from HDD
 				DataRecord *inner = dataRecords.at(idx);
