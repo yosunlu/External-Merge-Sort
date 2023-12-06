@@ -14,9 +14,10 @@
 #include <vector>
 #include <sstream>
 #include <cstdio>
+#include "global.h"
 
-long numOfRecord = 0;
-long record_size = 0;
+// long numOfRecord = 0;
+// long record_size = 0;
 
 // Function to close all files in the vector
 void closeInputFiles(std::vector<std::ifstream *> &inputFiles)
@@ -173,10 +174,15 @@ int main(int argc, char *argv[])
 	*/
 
 	std::vector<std::ifstream *> inputFiles; // stores the input pointers of file streams
-
+	
 	/***********************************************************/
 	/*************** Data generation ***************************/
 	/***********************************************************/
+	// compute record's column size
+	long totalColumnSize = record_size - 4;
+	incl_size = totalColumnSize/3;
+	mem_size = totalColumnSize/3;
+	mgmt_size = totalColumnSize/3 + totalColumnSize%3;
 
 	genDataRecords(numOfRecord); // generate and store a single unsorted file in input/input.txt
 
@@ -249,7 +255,7 @@ int main(int argc, char *argv[])
 		Plan *const plan = new SortPlan(new ScanPlan(10000000), EXTERNAL_PHASE_1, inputFiles, 0, s);
 		Iterator *const it = plan->init();
 		it->run();
-
+		
 		for (int i = 0; i < 100; ++i)
 		{
 			delete[] dataRecords[i];

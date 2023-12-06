@@ -6,8 +6,10 @@
 #include "Leaf.h"
 #include "PQ.h"
 #include <sstream>
+#include "global.h"
+#include <memory>
 
-#define REC_SIZE 1000
+// #define REC_SIZE 1000
 
 SortPlan::SortPlan(Plan *const input, SortState state, std::vector<std::ifstream *> inputFiles, int fileCount, int HDD_10GB_count) : _input(input), _state(state), _inputFiles(inputFiles), _fileCount(fileCount), _HDD_10GB_count(HDD_10GB_count)
 {
@@ -28,9 +30,7 @@ Iterator *SortPlan::init() const
 
 void swap(DataRecord &a, DataRecord &b)
 {
-	DataRecord temp = a;
-	a = b;
-	b = temp;
+	a.swapContents(b);
 }
 
 int part(DataRecord records[], int lower, int upper)
@@ -84,23 +84,32 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		int j = _consumed;
 		while (j--)
 		{
-			char row[REC_SIZE];
-			_inputFiles[0]->read(row, sizeof(row));
-			row[sizeof(row) - 2] = '\0'; // last 2 bytes are newline characters
+			char* row = new char[record_size];
+			_inputFiles[0]->read(row, record_size);
+			row[record_size - 2] = '\0'; // last 2 bytes are newline characters
 			// Extracting data from the row
-			char incl[333], mem[333], mgmt[333];
-			std::strncpy(incl, row, 332);
-			incl[332] = '\0';
+			char* incl = new char[incl_size + 1];
+			char* mem = new char[mem_size + 1];
+			char* mgmt = new char[mgmt_size + 1];
+			
+			std::strncpy(incl, row, incl_size);
+			incl[incl_size] = '\0';
 
-			std::strncpy(mem, row + 333, 332);
-			mem[332] = '\0';
+			std::strncpy(mem, row + incl_size + 1, mem_size);
+			mem[mem_size] = '\0';
 
-			std::strncpy(mgmt, row + 666, 332);
-			mgmt[332] = '\0';
+			std::strncpy(mgmt, row + incl_size + 1 + mem_size + 1, mgmt_size);
+			mgmt[mgmt_size] = '\0';
 
 			// Creating a DataRecord
-			DataRecord record(incl, mem, mgmt);
-			records[i++] = record;
+			// DataRecord* record = new DataRecord(incl_size + 1, mem_size + 1, mgmt_size + 1, incl, mem, mgmt);
+			std::unique_ptr<DataRecord> record(new DataRecord(incl_size + 1, mem_size + 1, mgmt_size + 1, incl, mem, mgmt));
+			records[i++] = *record;
+			// traceprintf("-----run1, record[i-1].getIncl:%s------\n", records[i-1].getIncl());
+			delete[] incl;
+			delete[] mem;
+			delete[] mgmt;
+			delete[] row;
 		}
 
 		qs(records, 0, _consumed - 1);
@@ -139,7 +148,6 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		}
 		// capacity 2^targetlevel
 		PQ priorityQueue(targetlevel);
-
 		// calculate the ovc
 		for (int i = 0; i < buckets; ++i)
 		{
@@ -176,7 +184,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 			std::cerr << "Error opening output file." << std::endl;
 
 		int count = 0; // current count of the records being popped
-		while (count < _consumed)
+		while (static_cast<RowCount>(count) < _consumed)
 		{
 			int idx = priorityQueue.pop();
 			if (idx == -1)
@@ -187,19 +195,18 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 			DataRecord *inner = dataRecords.at(idx);
 			// idx tells which leaf; hashtable[idx] returns the next pointer to the record
 			DataRecord output_record = inner[hashtable[idx]];
-			outputFile.write(output_record.getIncl(), 332);
+			outputFile.write(output_record.getIncl(), incl_size);
 			outputFile.write(" ", 1);
-			outputFile.write(output_record.getMem(), 332);
+			outputFile.write(output_record.getMem(), mem_size);
 			outputFile.write(" ", 1);
-			outputFile.write(output_record.getMgmt(), 332);
+			outputFile.write(output_record.getMgmt(), mgmt_size);
 			outputFile.write("\r\n", 2);
 
-			if (count == _consumed - 1)
+			if (static_cast<RowCount>(count) == _consumed - 1)
 				break;
 			if (hashtable[idx] < bucketSizeTable[idx] - 1) // check if there are record left in the bucket
 			{
-				char preVal[sizeOfColumn + 1];
-
+				char* preVal = new char[sizeOfColumn + 1];
 				// assign the data outputted, so preVal can be used to compare with next value in the same bucket
 				std::strcpy(preVal, ::leaf[idx].data());
 				hashtable[idx]++; // update the pointer
@@ -209,7 +216,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 				DataRecord record = inner_cur[hashtable[idx]]; // hashtable[idx] has been updated
 
 				std::strcpy(::leaf[idx].data(), record.getIncl()); // assign new key to leaf
-				char curVal[sizeOfColumn + 1];
+				char* curVal = new char[sizeOfColumn + 1];
 
 				std::strcpy(curVal, ::leaf[idx].data());
 
@@ -249,13 +256,15 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 					// std::cout << "push idx:" << idx << ", key:" << arityOffset * 100 + intValue << std::endl;
 					priorityQueue.push(idx, arityOffset * 100 + intValue);
 				}
+
+				delete[] preVal;
+    			delete[] curVal;
 			}
 
 			else // no more record left
 			{
 				priorityQueue.push(idx, priorityQueue.late_fence());
 			}
-
 			count++;
 		}
 
@@ -279,28 +288,39 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		for (int i = 1; i < numOf100MBruns + 1; i++)
 		{
 			DataRecord *records = new DataRecord[1000]();
+			// std::unique_ptr<DataRecord[]> records(new DataRecord[1000]());
 			for (int j = 0; j < 1000; j++)
 			{
-				char row[REC_SIZE];
-				_inputFiles[i]->read(row, sizeof(row));
-				row[sizeof(row) - 2] = '\0'; // last 2 bytes are newline characters
+				char* row = new char[record_size];
+				_inputFiles[i]->read(row, record_size);
+				row[record_size - 2] = '\0'; // last 2 bytes are newline characters
 				// Extracting data from the row
-				char incl[333], mem[333], mgmt[333];
-				std::strncpy(incl, row, 332);
-				incl[332] = '\0';
+				char* incl = new char[incl_size + 1];
+				char* mem = new char[mem_size + 1];
+				char* mgmt = new char[mgmt_size + 1];
+				
+				std::strncpy(incl, row, incl_size);
+				incl[incl_size] = '\0';
 
-				std::strncpy(mem, row + 333, 332);
-				mem[332] = '\0';
+				std::strncpy(mem, row + incl_size + 1, mem_size);
+				mem[mem_size] = '\0';
 
-				std::strncpy(mgmt, row + 666, 332);
-				mgmt[332] = '\0';
+				std::strncpy(mgmt, row + incl_size + 1 + mem_size + 1, mgmt_size);
+				mgmt[mgmt_size] = '\0';
 
 				// Creating a DataRecord
-				DataRecord record(incl, mem, mgmt);
-				records[j] = record;
+				// DataRecord* record = new DataRecord(incl_size + 1, mem_size + 1, mgmt_size + 1, incl, mem, mgmt);
+				std::unique_ptr<DataRecord> record(new DataRecord(incl_size + 1, mem_size + 1, mgmt_size + 1, incl, mem, mgmt));
+				records[j] = *record;
+				// traceprintf("records[j] incl: %s ,mem: %s, mgmt: %s\n", records[j].getIncl(),records[j].getMem(),records[j].getMgmt());
+				delete[] incl;
+				delete[] mem;
+				delete[] mgmt;
+				delete[] row;
 			}
 
 			dataRecords.push_back(records);
+			//traceprintf("dataRecords incl: %s \n", dataRecords[dataRecords.size() - 1][0].getIncl());
 		}
 
 		// Dram (dataRecords) is 100MB
@@ -324,6 +344,8 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 
 		// for how many records already output from each bucket
 		int *cntPerBucket = new int[buckets]();
+
+		// int *cnt1MBPerBucket = new int[buckets]();
 
 		// already push 1 record from each bucket, thus init this array with 1
 		for (int i = 0; i < buckets; ++i)
@@ -375,7 +397,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		DataRecord *outputBuf = new DataRecord[1000]();
 		int outputBufCnt = 0;
 		// int outputTotalCnt = 0;
-		while (count < _consumed)
+		while (static_cast<RowCount>(count) < _consumed)
 		{
 			// std::cout << "count:"<< count << std::endl;
 			int idx = priorityQueue.pop();
@@ -399,13 +421,12 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 				// write to HDD
 				for (int i = 0; i < 1000; i++)
 				{
-					// outputTotalCnt++;
 					DataRecord output_record = outputBuf[i];
-					outputFile.write(output_record.getIncl(), 332);
+					outputFile.write(output_record.getIncl(), incl_size);
 					outputFile.write(" ", 1);
-					outputFile.write(output_record.getMem(), 332);
+					outputFile.write(output_record.getMem(), mem_size);
 					outputFile.write(" ", 1);
-					outputFile.write(output_record.getMgmt(), 332);
+					outputFile.write(output_record.getMgmt(), mgmt_size);
 					outputFile.write("\r\n", 2);
 				}
 				outputBufCnt = 0;
@@ -418,7 +439,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 				outputBuf[outputBufCnt++] = output_record;
 			}
 
-			if (count == _consumed - 1)
+			if (static_cast<RowCount>(count) == _consumed - 1)
 				break;
 
 			// the total size of a bucket is 100MB = 100*1000 records
@@ -428,29 +449,43 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 			{
 				// read 8KB = 8 records from SSD
 				DataRecord *inner = dataRecords.at(idx);
+				// traceprintf("inner incl: %s\n", inner[hashtable[idx]].getIncl());
 				int curHtPointer = hashtable[idx];
 				int startToFillPointer = curHtPointer - 7;
 				// std::cout << "idx:"<< idx << ", startToFillPointer:" << startToFillPointer << ", to curHtPointer:"<< curHtPointer << std::endl;
 				for (int j = 0; j < 8; j++)
 				{
-					char row[REC_SIZE];
-					_inputFiles[idx + 1]->read(row, sizeof(row));
-					row[sizeof(row) - 2] = '\0'; // last 2 bytes are newline characters
+					char* row = new char[record_size];
+					_inputFiles[idx + 1]->read(row, record_size);
+					row[record_size - 2] = '\0'; // last 2 bytes are newline characters
 					// Extracting data from the row
-					char incl[333], mem[333], mgmt[333];
-					std::strncpy(incl, row, 332);
-					incl[332] = '\0';
+					char* incl = new char[incl_size + 1];
+					char* mem = new char[mem_size + 1];
+					char* mgmt = new char[mgmt_size + 1];
+					
+					std::strncpy(incl, row, incl_size);
+					incl[incl_size] = '\0';
 
-					std::strncpy(mem, row + 333, 332);
-					mem[332] = '\0';
+					std::strncpy(mem, row + incl_size + 1, mem_size);
+					mem[mem_size] = '\0';
 
-					std::strncpy(mgmt, row + 666, 332);
-					mgmt[332] = '\0';
+					std::strncpy(mgmt, row + incl_size + 1 + mem_size + 1, mgmt_size);
+					mgmt[mgmt_size] = '\0';
 
 					// Creating a DataRecord
-					DataRecord record(incl, mem, mgmt);
-					inner[startToFillPointer++] = record;
+					// DataRecord* record = new DataRecord(incl_size + 1, mem_size + 1, mgmt_size + 1, incl, mem, mgmt);
+					std::unique_ptr<DataRecord> record(new DataRecord(incl_size + 1, mem_size + 1, mgmt_size + 1, incl, mem, mgmt));
+					inner[startToFillPointer++] = *record;
+					// traceprintf("inner[startToFillPointer++] incl: %s\n", inner[startToFillPointer -1].getIncl());
+					delete[] incl;
+					delete[] mem;
+					delete[] mgmt;
+					delete[] row;
 				}
+
+				// if(curHtPointer == 999) {
+				// 	cnt1MBPerBucket[idx]++;
+				// }
 			}
 			// current 1MB bucket in Dram is empty, and there are records left in the 100MB: assign the pointer back to the beginning of the bucket
 			if (hashtable[idx] == 999 && cntPerBucket[idx] <= 100000)
@@ -462,7 +497,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 
 			if (hashtable[idx] < sizeOfBucket - 1) // check if there are record left in the bucket
 			{
-				char preVal[sizeOfColumn + 1];
+				char* preVal = new char[sizeOfColumn + 1];
 
 				// assign the data outputted, so preVal can be used to compare with next value in the same bucket
 				std::strcpy(preVal, ::leaf[idx].data());
@@ -470,11 +505,14 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 				cntPerBucket[idx]++; // update the count per bucket
 
 				// up till now, the record of the leaf is still the same as the outputted one
-				DataRecord *inner_cur = dataRecords.at(idx);   // inner_cur is a pointer to 1000 records, each 1kb
+				DataRecord *inner_cur = dataRecords[idx];   // inner_cur is a pointer to 1000 records, each 1kb
 				DataRecord record = inner_cur[hashtable[idx]]; // hashtable[idx] has been updated
 
+				//traceprintf("cntPerBucket[idx]: %d, cnt1MBPerBucket[idx]: %d, idx: %d ,hashtable[idx]: %d\n", cntPerBucket[idx], cnt1MBPerBucket[idx], idx, hashtable[idx]);
+				//traceprintf("inner_cur incl: %s\n", record.getIncl());
+				
 				std::strcpy(::leaf[idx].data(), record.getIncl()); // assign new key to leaf
-				char curVal[sizeOfColumn + 1];
+				char* curVal = new char[sizeOfColumn + 1];
 
 				std::strcpy(curVal, ::leaf[idx].data());
 
@@ -514,6 +552,9 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 					// std::cout << "push idx:" << idx << ", key:" << arityOffset * 100 + intValue << std::endl;
 					priorityQueue.push(idx, arityOffset * 100 + intValue);
 				}
+
+				delete[] preVal;
+    			delete[] curVal;
 			}
 			else // no more record left
 			{
@@ -528,16 +569,19 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		{
 			// outputTotalCnt++;
 			DataRecord output_record = outputBuf[i];
-			outputFile.write(output_record.getIncl(), 332);
+			outputFile.write(output_record.getIncl(), incl_size);
 			outputFile.write(" ", 1);
-			outputFile.write(output_record.getMem(), 332);
+			outputFile.write(output_record.getMem(), mem_size);
 			outputFile.write(" ", 1);
-			outputFile.write(output_record.getMgmt(), 332);
+			outputFile.write(output_record.getMgmt(), mgmt_size);
 			outputFile.write("\r\n", 2);
 		}
-
 		outputFile.close();
 
+		delete[] hashtable;
+ 		delete[] cntPerBucket;
+		delete[] outputBuf;
+		
 		// for(int i = 0; i < 100; i++) {
 		// 	std::cout << "cnt1MBPerBucket["<< i << "]:" << cnt1MBPerBucket[i] << std::endl;
 		// }
@@ -570,23 +614,31 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 			DataRecord *records = new DataRecord[recordPerBucket](); // 8MB / 1000 = 8000
 			for (int k = 0; k < recordPerBucket; k++)
 			{
-				char row[REC_SIZE];
-				_inputFiles[i]->read(row, sizeof(row));
-				row[sizeof(row) - 2] = '\0'; // last 2 bytes are newline characters
+				char* row = new char[record_size];
+				_inputFiles[i]->read(row, record_size);
+				row[record_size - 2] = '\0'; // last 2 bytes are newline characters
 				// Extracting data from the row
-				char incl[333], mem[333], mgmt[333];
-				std::strncpy(incl, row, 332);
-				incl[332] = '\0';
+				char* incl = new char[incl_size + 1];
+				char* mem = new char[mem_size + 1];
+				char* mgmt = new char[mgmt_size + 1];
+				
+				std::strncpy(incl, row, incl_size);
+				incl[incl_size] = '\0';
 
-				std::strncpy(mem, row + 333, 332);
-				mem[332] = '\0';
+				std::strncpy(mem, row + incl_size + 1, mem_size);
+				mem[mem_size] = '\0';
 
-				std::strncpy(mgmt, row + 666, 332);
-				mgmt[332] = '\0';
+				std::strncpy(mgmt, row + incl_size + 1 + mem_size + 1, mgmt_size);
+				mgmt[mgmt_size] = '\0';
 
 				// Creating a DataRecord
-				DataRecord record(incl, mem, mgmt);
-				records[k] = record;
+				// DataRecord* record = new DataRecord(incl_size + 1, mem_size + 1, mgmt_size + 1, incl, mem, mgmt);
+				std::unique_ptr<DataRecord> record(new DataRecord(incl_size + 1, mem_size + 1, mgmt_size + 1, incl, mem, mgmt));
+				records[k] = *record;
+				delete[] incl;
+				delete[] mem;
+				delete[] mgmt;
+				delete[] row;
 			}
 			dataRecords.push_back(records);
 		}
@@ -651,7 +703,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		DataRecord *outputBuf = new DataRecord[1000]();
 		int outputBufCnt = 0;
 
-		while (count < _consumed)
+		while (static_cast<RowCount>(count) < _consumed)
 		{
 			int idx = priorityQueue.pop();
 			if (idx == -1)
@@ -673,11 +725,11 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 				{
 					// outputTotalCnt++;
 					DataRecord output_record = outputBuf[i];
-					outputFile.write(output_record.getIncl(), 332);
+					outputFile.write(output_record.getIncl(), incl_size);
 					outputFile.write(" ", 1);
-					outputFile.write(output_record.getMem(), 332);
+					outputFile.write(output_record.getMem(), mem_size);
 					outputFile.write(" ", 1);
-					outputFile.write(output_record.getMgmt(), 332);
+					outputFile.write(output_record.getMgmt(), mgmt_size);
 					outputFile.write("\r\n", 2);
 				}
 				outputBufCnt = 0;
@@ -690,7 +742,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 				outputBuf[outputBufCnt++] = output_record;
 			}
 
-			if (count == _consumed - 1)
+			if (static_cast<RowCount>(count) == _consumed - 1)
 				break;
 
 			// %1000 == 0 means current 8MB bucket has 1MB (1000 records) outputted
@@ -705,23 +757,31 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 				// std::cout << "idx:"<< idx << ", startToFillPointer:" << startToFillPointer << ", to curHtPointer:"<< curHtPointer << std::endl;
 				for (int j = 0; j < 1000; j++)
 				{
-					char row[REC_SIZE];
-					_inputFiles[idx]->read(row, sizeof(row));
-					row[sizeof(row) - 2] = '\0'; // last 2 bytes are newline characters
+					char* row = new char[record_size];
+					_inputFiles[idx]->read(row, record_size);
+					row[record_size - 2] = '\0'; // last 2 bytes are newline characters
 					// Extracting data from the row
-					char incl[333], mem[333], mgmt[333];
-					std::strncpy(incl, row, 332);
-					incl[332] = '\0';
+					char* incl = new char[incl_size + 1];
+					char* mem = new char[mem_size + 1];
+					char* mgmt = new char[mgmt_size + 1];
+					
+					std::strncpy(incl, row, incl_size);
+					incl[incl_size] = '\0';
 
-					std::strncpy(mem, row + 333, 332);
-					mem[332] = '\0';
+					std::strncpy(mem, row + incl_size + 1, mem_size);
+					mem[mem_size] = '\0';
 
-					std::strncpy(mgmt, row + 666, 332);
-					mgmt[332] = '\0';
+					std::strncpy(mgmt, row + incl_size + 1 + mem_size + 1, mgmt_size);
+					mgmt[mgmt_size] = '\0';
 
 					// Creating a DataRecord
-					DataRecord record(incl, mem, mgmt);
-					inner[startToFillPointer++] = record;
+					// DataRecord* record = new DataRecord(incl_size + 1, mem_size + 1, mgmt_size + 1, incl, mem, mgmt);
+					std::unique_ptr<DataRecord> record(new DataRecord(incl_size + 1, mem_size + 1, mgmt_size + 1, incl, mem, mgmt));
+					inner[startToFillPointer++] = *record;
+					delete[] incl;
+					delete[] mem;
+					delete[] mgmt;
+					delete[] row;
 				}
 			}
 			// current 8MB bucket in Dram is empty, and there are records left in the 10GB bucket: assign the pointer back to the beginning of the bucket
@@ -734,7 +794,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 
 			if (hashtable[idx] < sizeOfBucket - 1) // check if there are record left in the bucket
 			{
-				char preVal[sizeOfColumn + 1];
+				char* preVal = new char[sizeOfColumn + 1];
 
 				// assign the data outputted, so preVal can be used to compare with next value in the same bucket
 				std::strcpy(preVal, ::leaf[idx].data());
@@ -746,7 +806,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 				DataRecord record = inner_cur[hashtable[idx]]; // hashtable[idx] has been updated
 
 				std::strcpy(::leaf[idx].data(), record.getIncl()); // assign new key to leaf
-				char curVal[sizeOfColumn + 1];
+				char* curVal = new char[sizeOfColumn + 1];
 
 				std::strcpy(curVal, ::leaf[idx].data());
 
@@ -786,6 +846,9 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 					// std::cout << "push idx:" << idx << ", key:" << arityOffset * 100 + intValue << std::endl;
 					priorityQueue.push(idx, arityOffset * 100 + intValue);
 				}
+
+				delete[] preVal;
+    			delete[] curVal;
 			}
 			else // no more record left
 			{
@@ -800,14 +863,17 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		{
 			// outputTotalCnt++;
 			DataRecord output_record = outputBuf[i];
-			outputFile.write(output_record.getIncl(), 332);
+			outputFile.write(output_record.getIncl(), incl_size);
 			outputFile.write(" ", 1);
-			outputFile.write(output_record.getMem(), 332);
+			outputFile.write(output_record.getMem(), mem_size);
 			outputFile.write(" ", 1);
-			outputFile.write(output_record.getMgmt(), 332);
+			outputFile.write(output_record.getMgmt(), mgmt_size);
 			outputFile.write("\r\n", 2);
 		}
 		outputFile.close();
+		delete[] hashtable;
+ 		delete[] cntPerBucket;
+		delete[] outputBuf;
 
 		// for(int i = 0; i < 100; i++) {
 		// 	std::cout << "cnt1MBPerBucket["<< i << "]:" << cnt1MBPerBucket[i] << std::endl;
