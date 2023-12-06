@@ -153,6 +153,34 @@ int main(int argc, char *argv[])
 		std::cerr << "Path exists but is not a directory." << std::endl;
 	}
 
+	// create output directory
+	directoryName = "output";
+
+	// Check if the directory exists
+	if (stat(directoryName, &info) != 0)
+	{
+		// Directory does not exist, try to create it
+		int dirCreationResult = mkdir(directoryName, 0777);
+		if (dirCreationResult == 0)
+		{
+			std::cout << "output created successfully." << std::endl;
+		}
+		else
+		{
+			std::cerr << "Error creating output." << std::endl;
+		}
+	}
+	else if (info.st_mode & S_IFDIR)
+	{
+		// Directory exists
+		std::cout << "output already exists." << std::endl;
+	}
+	else
+	{
+		// Path exists but is not a directory
+		std::cerr << "Path exists but is not a directory." << std::endl;
+	}
+
 	// how many 10GB file to be generated
 	int numOf10GBs = numOfRecord / 10000000;			   // 10GB is 10,000,000 records
 	int numRecord_leftOverOf10GB = numOfRecord % 10000000; // if 115GB, leftover is 5GB, which is 5,000,000 records
@@ -174,15 +202,15 @@ int main(int argc, char *argv[])
 	*/
 
 	std::vector<std::ifstream *> inputFiles; // stores the input pointers of file streams
-	
+
 	/***********************************************************/
 	/*************** Data generation ***************************/
 	/***********************************************************/
 	// compute record's column size
 	long totalColumnSize = record_size - 4;
-	incl_size = totalColumnSize/3;
-	mem_size = totalColumnSize/3;
-	mgmt_size = totalColumnSize/3 + totalColumnSize%3;
+	incl_size = totalColumnSize / 3;
+	mem_size = totalColumnSize / 3;
+	mgmt_size = totalColumnSize / 3 + totalColumnSize % 3;
 
 	genDataRecords(numOfRecord); // generate and store a single unsorted file in input/input.txt
 
@@ -255,7 +283,7 @@ int main(int argc, char *argv[])
 		Plan *const plan = new SortPlan(new ScanPlan(10000000), EXTERNAL_PHASE_1, inputFiles, 0, s);
 		Iterator *const it = plan->init();
 		it->run();
-		
+
 		for (int i = 0; i < 100; ++i)
 		{
 			delete[] dataRecords[i];
@@ -282,24 +310,19 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	// only close the initial large file when input size is 10x GB (not, for example, 12.5 GB)
-	// if 12.5GB, should go to next phase
-	if (numOf10GBs && !numRecord_leftOverOf10GB)
-	{
-		closeInputFiles(inputFiles);
-
-		// delete the large 120GB file
-		delete inputFiles[0];
-		// pop-back the 0th large input file (120GB)
-		inputFiles.pop_back();
-		inputFiles.clear();
-	}
-
 	// last step: merge sort 10GB files from HDD
 	// make the 10GB outputs from previous phase new inputs
 	// only do the final merge here if input size is 10x GB (not, for example, 12.5 GB)
 	if (numOf10GBs && !numRecord_leftOverOf10GB)
 	{
+		// close the initial large file
+		closeInputFiles(inputFiles);
+		// delete the large 120GB file
+		delete inputFiles[0];
+		// pop-back the 0th large input file (120GB)
+		inputFiles.pop_back();
+		inputFiles.clear();
+
 		for (int i = 0; i < numOf10GBs; i++)
 		{
 			std::stringstream filename;
@@ -316,6 +339,7 @@ int main(int argc, char *argv[])
 		Iterator *const it = plan->init();
 		it->run();
 
+		// clear the 10GB sorted input files in SSD
 		closeInputFiles(inputFiles);
 		for (int i = 0; i < numOf10GBs; ++i)
 		{
@@ -324,21 +348,21 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	/***** The operation above deals with data size 10GB and above*****/
+	/***** The operation above deals with data size 10GB and above *****/
 
 	/***************************************************************************/
 	/******************* 1GB ~ 9GB data leftover *******************************/
 	/****** does not consider decimals, for example 1.5GB) *********************/
 	/***************************************************************************/
 
-	if (numRecord_leftOverOf10GB)
+	if (numRecord_leftOverOf10GB && !numRecord_leftOverOf100MB)
 	{
 		// for example 3GB; 3GB is 3,000,000 records; 1GB is 1,000,000 records
 		int numOfGBs = numRecord_leftOverOf10GB / 1000000; // 3
 		int numOf100MBruns = numOfGBs * 10;
 
 		// each iteration will create a sorted numOf100MBruns file to SSD
-		// when the for loop ends, there will be 100 * 100MB files in SSD
+		// when the for loop ends, there will be numOf100MBruns * 100MB files in SSD
 		for (int i = 0; i < numOf100MBruns; i++) // numOfGBs * 10 * 100MB dataRecords
 		{
 			// each iteration will push_back one pointer to 1000 records (1MB) to dataRecords;
@@ -401,8 +425,6 @@ int main(int argc, char *argv[])
 		delete it;
 		delete plan;
 
-		traceprintf("===========debug============\n");
-
 		// after outputting the numOf100MBruns * 100MB sorted file to HDD, clear the SSD
 		for (int fileCount = 0; fileCount < numOf100MBruns; ++fileCount)
 		{
@@ -419,8 +441,8 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	// Last step external merge sort that deals with data size 12.5GB
-	if (numOf10GBs && numRecord_leftOverOf10GB)
+	// Last step: external merge sort that deals with data size 12.5GB
+	if (numRecord_leftOverOf10GB && !numRecord_leftOverOf100MB)
 	{
 		// remove the large input file (12.5GB)
 		closeInputFiles(inputFiles);
@@ -445,12 +467,129 @@ int main(int argc, char *argv[])
 		Iterator *const it = plan->init();
 		it->run();
 
+		// delete the 10GB files in SSD
 		closeInputFiles(inputFiles);
 		for (int i = 0; i < numOf10GBs + 1; ++i)
 		{
 			delete inputFiles[i];
 			inputFiles.pop_back();
 		}
+	}
+
+	/***************************************************************************/
+	/******************* 100mb ~ 1GB data leftover *****************************/
+	/****** does not consider decimals, for example 1.5GB) *********************/
+	/***************************************************************************/
+
+	if (numRecord_leftOverOf100MB)
+	{
+
+		// for example: 125MB, 125,000 records, only has 1 * 100000
+		int numOf100MB = numOfRecord / 100000;
+		// each iteration will create a 100MB sorted file to SSD
+		int i = 0;
+		for (; i < numOf100MB; i++)
+		{
+			// each iteration will push_back one pointer to 1000 records (1MB) to dataRecords;
+			// when the for loop ends, there will be one dataRecord (DRAM) which is 100MB
+			for (int j = 0; j < 100; ++j)
+			{
+				Plan *const plan = new SortPlan(new ScanPlan(1000), RUN_PHASE_1, inputFiles, 0, 0); // quick sort 1MB of data and repeat 100 times
+				Iterator *const it = plan->init();
+				it->run();
+
+				delete it;
+				delete plan;
+			}
+
+			// merge sort the 100MB data created in DRAM, and output to SSD
+			Plan *const plan = new SortPlan(new ScanPlan(100000), RUN_PHASE_2, inputFiles, i, 0); // 100000 records is 100MB
+			Iterator *const it = plan->init();
+			it->run();
+
+			for (int i = 0; i < 100; ++i)
+			{
+				delete[] dataRecords[i];
+			}
+
+			dataRecords.clear();
+
+			delete it;
+			delete plan;
+		}
+
+		// leftover of the 100MBs
+		// if the leftover is 25MB, will sort this 25MB is DRAM and output to SSD
+		int MBleft = numRecord_leftOverOf100MB / 1000;
+
+		for (int j = 0; j < MBleft; ++j)
+		{
+			Plan *const plan = new SortPlan(new ScanPlan(1000), RUN_PHASE_1, inputFiles, 0, 0); // quick sort 1MB of data and repeat numRecord_leftOverOf100MB times
+			Iterator *const it = plan->init();
+			it->run();
+
+			delete it;
+			delete plan;
+		}
+
+		// merge sort the numRecord_leftOverOf100MB data created in DRAM, and output to SSD
+		// 25MB is 25000 records
+
+		Plan *const plan = new SortPlan(new ScanPlan(numRecord_leftOverOf100MB * 1000), RUN_PHASE_2, inputFiles, i, 0); // 100000 records is 100MB
+		Iterator *const it = plan->init();
+		it->run();
+
+		for (int i = 0; i < MBleft; ++i)
+		{
+			delete[] dataRecords[i];
+		}
+
+		dataRecords.clear();
+
+		delete it;
+		delete plan;
+
+		// merge files from SSD to HDD
+		// make the numOf100MBruns outputs from last for loop the new inputs
+		for (int j = 0; j < numOf100MB + 1; j++)
+		{
+			std::stringstream filename;
+			filename << "SSD-10GB/output_" << j << ".txt";
+			std::ifstream *newInputFile = new std::ifstream(filename.str(), std::ios::binary);
+
+			if (!newInputFile->is_open())
+				std::cerr << "Error opening input file." << std::endl;
+
+			inputFiles.push_back(newInputFile);
+		}
+
+		Plan *const plan_1 = new SortPlan(new ScanPlan(numOfRecord), EXTERNAL_PHASE_1, inputFiles, 0, 0);
+		Iterator *const it_1 = plan_1->init();
+		it_1->run();
+
+		for (int i = 0; i < numOf100MB + 1; ++i)
+		{
+			delete[] dataRecords[i];
+		}
+		dataRecords.clear();
+
+		delete it_1;
+		delete plan_1;
+
+		// after outputting the 100 * 100MB (10GB) sorted file to HDD, clear the SSD
+		// for (int fileCount = 0; fileCount < numOf100MB + 1; ++fileCount)
+		// {
+		// 	std::stringstream filename;
+		// 	filename << "SSD-10GB/output_" << fileCount << ".txt";
+
+		// 	// Convert the stringstream to a string and then to a path
+		// 	std::string file_to_delete = filename.str();
+
+		// 	if (std::remove(file_to_delete.c_str()) != 0)
+		// 		perror("Error deleting file");
+		// 	delete inputFiles[fileCount + 1];
+		// 	inputFiles.pop_back();
+		// }
 	}
 
 	// /***** less than 100MB data left (does consider decimals, for example 32.5MB); now only handles total size  less than 100MB  *****/
@@ -497,74 +636,6 @@ int main(int argc, char *argv[])
 
 	return 0;
 } // main
-
-// /****** Input size smaller than 10GB but larger than 100MB *****/
-// if (numOfRecord >= 100000 && numOfRecord < 10000000) // 100000 records is 100MB
-// {
-// 	// for example: 300MB = 300,000 records
-// 	int numOf100MBruns = numRecord_leftOverOf10GB / 100000; // 3
-
-// 	for (int i = 0; i < numOf100MBruns; i++) // numOf100MBruns * 100MB dataRecords
-// 	{
-// 		// each iteration will push_back one pointer to 1000 records (1MB) to dataRecords;
-// 		// when the for loop ends, there will be one dataRecord which is 100MB
-// 		for (int j = 0; j < 100; ++j)
-// 		{
-// 			Plan *const plan = new SortPlan(new ScanPlan(1000), RUN_PHASE_1, inputFiles, 0, 0); // quick sort 1MB of data and repeat 100 times
-// 			Iterator *const it = plan->init();
-// 			it->run();
-
-// 			delete it;
-// 			delete plan;
-// 		}
-
-// 		// merge sort the 100MB data created in DRAM, and output to SSD
-// 		Plan *const plan = new SortPlan(new ScanPlan(100000), RUN_PHASE_2, inputFiles, i, 0); // 100000 records is 100MB
-// 		Iterator *const it = plan->init();
-// 		it->run();
-
-// 		for (int i = 0; i < 100; ++i)
-// 		{
-// 			delete[] dataRecords[i];
-// 		}
-
-// 		dataRecords.clear();
-
-// 		delete it;
-// 		delete plan;
-// 	}
-
-// 	// external sort phase 1
-// 	// merge numOf100MBruns * 100MB on SSD to a 10GB on HDD
-
-// 	// make the 100 outputs from last for loop the new inputs
-// 	for (int i = 0; i < numOf100MBruns; i++)
-// 	{
-// 		std::stringstream filename;
-// 		filename << "SSD-10GB/output_" << i << ".txt";
-// 		std::ifstream *newInputFile = new std::ifstream(filename.str(), std::ios::binary);
-
-// 		if (!newInputFile->is_open())
-// 			std::cerr << "Error opening input file." << std::endl;
-
-// 		inputFiles.push_back(newInputFile);
-// 	}
-
-// 	// merge sort the numOf100MBruns * 100MB files in SSD, and output to HDD
-// 	Plan *const plan = new SortPlan(new ScanPlan(numOfRecord), EXTERNAL_PHASE_1, inputFiles, 0, 0);
-// 	Iterator *const it = plan->init();
-// 	it->run();
-
-// 	for (int i = 0; i < 100; ++i)
-// 	{
-// 		delete[] dataRecords[i];
-// 	}
-
-// 	dataRecords.clear();
-
-// 	delete it;
-// 	delete plan;
-// }
 
 // SortPlan has private attribute _input, which is intialized to a ScanPlan.
 // In SortPlan 's init(), a SortIterator(this) is constructed and returned.

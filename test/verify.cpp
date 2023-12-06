@@ -55,7 +55,7 @@ int main()
 
     inputFile.close();
 
-    std::ifstream outputFile("../HDD/final_output.txt", std::ios::binary);
+    std::ifstream outputFile("../output/final_output.txt", std::ios::binary);
 
     if (!outputFile.is_open())
     {
@@ -67,7 +67,6 @@ int main()
     int i = 0;
     char prev[333];
     bool isOrdered = true;
-    int cnt = 0;
     while (outputFile.peek() != EOF)
     {
         char row[REC_SIZE];
@@ -80,10 +79,10 @@ int main()
         char incl[333];
         strncpy(incl, row, 332);
         incl[332] = '\0';
+
         if (i != 0 && strcmp(prev, incl) > 0)
         {
             std::cout << "i:" << i << ",prev:" << prev << ",cur incl:" << incl << std::endl;
-            cnt++;
             isOrdered = false;
         }
 
@@ -119,7 +118,6 @@ int main()
     }
     else
     {
-        std::cout << "cnt:" << cnt << std::endl;
         std::cerr << "output file is unordered." << std::endl;
     }
 }
