@@ -1,8 +1,8 @@
 #include "verify.h"
-#include "qs.h"
 #include <cstring>
 #include <fstream>
 #include <zlib.h> /* use crc32() function */
+#include <iostream>
 
 /**
     add16 - add two 16-byte numbers
@@ -68,11 +68,13 @@ int main(int argc, char *argv[])
 
     while (inputFile.peek() != EOF)
     {
-        char row[record_size];
+        // char row[record_size];
+        char* row = new char[record_size];
         inputFile.read(row, record_size);
         temp16.lo8 = crc32(0, reinterpret_cast<const Bytef *>(row), record_size);
         input_summary.checksum = add16(input_summary.checksum, temp16);
         input_summary.rec_count = add16(input_summary.rec_count, one);
+        delete[] row;
     }
 
     inputFile.close();
@@ -88,19 +90,21 @@ int main(int argc, char *argv[])
     struct summary output_summary = {};
     int i = 0;
     int key_size = record_size / 3;
-    char prev[key_size + 1];
+    // char prev[key_size + 1];
+    char* prev = new char[key_size + 1];
     bool isOrdered = true;
     int cnt = 0;
     while (outputFile.peek() != EOF)
     {
-        char row[record_size];
+        char* row = new char[record_size];
         outputFile.read(row, record_size);
         temp16.lo8 = crc32(0, reinterpret_cast<const Bytef *>(row), record_size);
         output_summary.checksum = add16(output_summary.checksum, temp16);
         output_summary.rec_count = add16(output_summary.rec_count, one);
 
         // Extracting data from the row
-        char incl[key_size + 1];
+        // char incl[key_size + 1];
+        char* incl = new char[key_size + 1];
         strncpy(incl, row, key_size);
         incl[key_size] = '\0';
         if (i != 0 && strcmp(prev, incl) > 0)
@@ -112,8 +116,11 @@ int main(int argc, char *argv[])
 
         strncpy(prev, incl, key_size + 1);
         i++;
+        delete[] row;
+        delete[] incl;
     }
 
+    delete[] prev;
     outputFile.close();
 
     if (output_summary.checksum.hi8 != input_summary.checksum.hi8 ||
