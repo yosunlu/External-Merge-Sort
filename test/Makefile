@@ -1,19 +1,19 @@
 CXX = g++
 CXXFLAGS = -std=c++11 -Wall
 
-all: gen qs verify sort
+all: gen.exe qs.exe verify.exe sort.exe
 
-gen: gen.cpp
+gen.exe: gen.cpp
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
-qs: qs.cpp
+qs.exe: qs.cpp
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
-verify: verify.cpp
+verify.exe: verify.cpp
 	$(CXX) $(CXXFLAGS) -o $@ $< -lz
 
-sort: sort.cpp
+sort.exe: sort.cpp
 	$(CXX) $(CXXFLAGS) -o $@ $<
 
 clean:
-	rm -f gen qs verify
+	rm -f gen.exe qs.exe verify.exe sort.exe
