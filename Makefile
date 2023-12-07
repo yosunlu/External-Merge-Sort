@@ -18,15 +18,19 @@ SRCS=	defs.cpp Assert.cpp Test.cpp \
 # compilation targets
 OBJS=	defs.o Assert.o Test.o \
 		Iterator.o Scan.o Filter.o Sort.o gen.o Dram.o PQ.o global.o
-
+ 
 # RCS assists
 REV=-q -f
 MSG=no message
 
 # default target
 #
+all: Test.exe verify.exe
 Test.exe : Makefile $(OBJS)
 	g++ $(CPPFLAGS) -o Test.exe $(OBJS)
+
+verify.exe: verify.cpp
+	g++ $(CPPFLAGS) -o $@ $< -lz
 
 trace : Test.exe Makefile
 	@date > trace
