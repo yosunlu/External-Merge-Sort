@@ -182,7 +182,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		std::stringstream filename;
 		// 125MB : left over of 25MB should go to SSD
 		// 50MB : should go to output directly
-		if (numOfRecord < 100000)
+		if (totalSize < 100000000)
 			filename << "output/final_output.txt";
 		else
 			filename << "SSD-10GB/output_" << _fileCount << ".txt";
@@ -673,7 +673,8 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		// table to store the number of records for each buckets
 		// useful when there are leftovers (32 * 1000 records, and 1 * 500 records)
 		int *bucketTotalSizeTable = new int[numOfbuckets]();
-		for (int i = 0; i < numOfbuckets - 1; i++){
+		for (int i = 0; i < numOfbuckets - 1; i++)
+		{
 			// bucketTotalSizeTable[i] = 10000000; // for normal 10GB sorted file in HDD, size is 10000000
 			bucketTotalSizeTable[i] = numOfRec10GB; // for normal 10GB sorted file in HDD, size is 10000000
 		}

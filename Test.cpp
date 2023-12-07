@@ -199,6 +199,15 @@ int main(int argc, char *argv[])
 	int numRecord_leftOverOf100MB = numRecord_leftOverOf10GB % numOfRec100MB;
 	// int numRecord_leftOverOf1MB = numRecord_leftOverOf100MB % 1000;
 	int numRecord_leftOverOf1MB = numRecord_leftOverOf100MB % numOfRec1MB;
+	totalSize = numOfRecord * record_size;
+
+	/**
+
+	 125MB, 50 byte, what is numRecord_leftOverOf100MB?
+
+
+	 *
+	*/
 
 	/**
 	120GB: 120,000,000 records
@@ -612,12 +621,12 @@ int main(int argc, char *argv[])
 
 	/***************************************************************************/
 	/******************* less than 100MB data leftover *************************/
-	/****************** can handle decimals, like 50.5MB ***********************/
+	/****************** can handle decimals, like 55MB ***********************/
 	/***************************************************************************/
 
-	if (numRecord_leftOverOf100MB)
+	if (totalSize < 100000000)
 	{
-		// for example : 50.5MB = 55000 records
+		// for example : 55MB = 55000 records
 
 		// numRecord_leftOverOf100MB = 55,500
 		// int numOf1MBruns = numRecord_leftOverOf100MB / 1000; // 55
@@ -657,48 +666,6 @@ int main(int argc, char *argv[])
 		closeInputFiles(inputFiles);
 		inputFiles.pop_back();
 	}
-
-	// /***** less than 100MB data left (does consider decimals, for example 32.5MB); now only handles total size  less than 100MB  *****/
-	// else if (numRecord_leftOverOf100MB)
-	// {
-	// 	// for example : 32.5MB = 32500 records
-
-	// 	// numRecord_leftOverOf100MB = 32,500
-	// 	int numOf1MBruns = numRecord_leftOverOf100MB / 1000; // 32
-
-	// 	// quick sort the 32.5MB and store in dram (daraRecords)
-	// 	// when completed, there will be 32 sorted 1MB runs in dram
-	// 	for (int i = 0; i < numOf1MBruns; i++)
-	// 	{
-	// 		Plan *const plan_phase1 = new SortPlan(new ScanPlan(1000), RUN_PHASE_1, inputFiles, 0, 0);
-	// 		Iterator *const it_1 = plan_phase1->init();
-	// 		it_1->run();
-
-	// 		delete it_1;
-	// 		delete plan_phase1;
-	// 	}
-
-	// 	// there are less than 1MB of data left, for example 32,500 records: 500 records left, which is 500KB
-	// 	if (numRecord_leftOverOf1MB)
-	// 	{
-	// 		Plan *const plan_phase1 = new SortPlan(new ScanPlan(numRecord_leftOverOf1MB), RUN_PHASE_1, inputFiles, 0, 0);
-	// 		Iterator *const it_1 = plan_phase1->init();
-	// 		it_1->run();
-
-	// 		delete it_1;
-	// 		delete plan_phase1;
-	// 	}
-
-	// 	Plan *const plan_phase2 = new SortPlan(new ScanPlan(numRecord_leftOverOf100MB), RUN_PHASE_2, inputFiles, 0, 0);
-	// 	Iterator *const it_2 = plan_phase2->init();
-	// 	it_2->run();
-
-	// 	delete it_2;
-	// 	delete plan_phase2;
-
-	// 	closeInputFiles(inputFiles);
-	// 	inputFiles.pop_back();
-	// }
 
 	return 0;
 } // main
