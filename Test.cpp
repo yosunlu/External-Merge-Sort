@@ -185,11 +185,11 @@ int main(int argc, char *argv[])
 	// 1MB number of record
 	long long numOfRec1MB = MB / record_size;
 	// 100MB number of record
-	long long numOfRec100MB = MB * 100 / record_size;
+	long long numOfRec100MB = 100 * MB / record_size;
 	// 1GB number of record
-	long long numOfRec1GB = 100 * 100 * MB / record_size;
+	long long numOfRec1GB = 1000 * MB / record_size;
 	// 10GB number of record
-	long long numOfRec10GB = 100 * 100 * MB / record_size;
+	long long numOfRec10GB = 10 * 1000 * MB / record_size;
 	// how many 10GB file to be generated
 	// int numOf10GBs = numOfRecord / 10000000;			   // 10GB is 10,000,000 records
 	int numOf10GBs = numOfRecord / numOfRec10GB; // 10GB is 10,000,000 records
@@ -388,6 +388,7 @@ int main(int argc, char *argv[])
 		// For 50 byte record: 1GB is 20,000,000 records
 		int numOfGBs = numRecord_leftOverOf10GB / numOfRec1GB; // 3
 		int numOf100MBruns = numOfGBs * 10;
+		std::cout << "numOf100MBruns:" << numOf100MBruns << std::endl;
 		// each iteration will create a sorted numOf100MBruns file to SSD
 		// when the for loop ends, there will be numOf100MBruns * 100MB files in SSD
 		for (int i = 0; i < numOf100MBruns; i++) // numOfGBs * 10 * 100MB dataRecords
@@ -404,6 +405,7 @@ int main(int argc, char *argv[])
 				delete plan;
 			}
 
+			std::cout << "---------- debug 12GB 1----------" << std::endl;
 			// merge sort the 100MB data created in DRAM, and output to SSD
 			Plan *const plan = new SortPlan(new ScanPlan(numOfRec100MB), RUN_PHASE_2, inputFiles, i, 0); // 100000 records is 100MB
 			Iterator *const it = plan->init();
@@ -416,7 +418,11 @@ int main(int argc, char *argv[])
 			dataRecords.clear();
 			delete it;
 			delete plan;
+
+			std::cout << "---------- debug 12GB 2----------" << std::endl;
 		}
+
+		std::cout << "---------- debug 12GB 3----------" << std::endl;
 
 		// external sort phase 1
 		// merge 100 * 100MB on SSD to a 10GB on HDD
@@ -452,19 +458,19 @@ int main(int argc, char *argv[])
 		delete plan;
 
 		// after outputting the numOf100MBruns * 100MB sorted file to HDD, clear the SSD
-		// for (int fileCount = 0; fileCount < numOf100MBruns; ++fileCount)
-		// {
-		// 	std::stringstream filename;
-		// 	filename << "SSD-10GB/output_" << fileCount << ".txt";
+		for (int fileCount = 0; fileCount < numOf100MBruns; ++fileCount)
+		{
+			std::stringstream filename;
+			filename << "SSD-10GB/output_" << fileCount << ".txt";
 
-		// 	// Convert the stringstream to a string and then to a path
-		// 	std::string file_to_delete = filename.str();
+			// Convert the stringstream to a string and then to a path
+			std::string file_to_delete = filename.str();
 
-		// 	if (std::remove(file_to_delete.c_str()) != 0)
-		// 		perror("Error deleting file");
-		// 	delete inputFiles[fileCount + 1];
-		// 	inputFiles.pop_back();
-		// }
+			if (std::remove(file_to_delete.c_str()) != 0)
+				perror("Error deleting file");
+			delete inputFiles[fileCount + 1];
+			inputFiles.pop_back();
+		}
 	}
 
 	// Last step: external merge sort that deals with data size 12.5GB
