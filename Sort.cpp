@@ -413,6 +413,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 			HDD_file << "output/final_output.txt";
 		else
 			HDD_file << "HDD/output_10GB_" << _HDD_10GB_count + singleDigitGBleft << ".txt";
+		// TODO: Can only do 12 GB currently
 
 		std::ofstream outputFile(HDD_file.str(), std::ios::binary | std::ios::app); // std::ios::app for appending
 		if (!outputFile.is_open())

@@ -426,19 +426,19 @@ int main(int argc, char *argv[])
 		delete plan;
 
 		// after outputting the numOf100MBruns * 100MB sorted file to HDD, clear the SSD
-		for (int fileCount = 0; fileCount < numOf100MBruns; ++fileCount)
-		{
-			std::stringstream filename;
-			filename << "SSD-10GB/output_" << fileCount << ".txt";
+		// for (int fileCount = 0; fileCount < numOf100MBruns; ++fileCount)
+		// {
+		// 	std::stringstream filename;
+		// 	filename << "SSD-10GB/output_" << fileCount << ".txt";
 
-			// Convert the stringstream to a string and then to a path
-			std::string file_to_delete = filename.str();
+		// 	// Convert the stringstream to a string and then to a path
+		// 	std::string file_to_delete = filename.str();
 
-			if (std::remove(file_to_delete.c_str()) != 0)
-				perror("Error deleting file");
-			delete inputFiles[fileCount + 1];
-			inputFiles.pop_back();
-		}
+		// 	if (std::remove(file_to_delete.c_str()) != 0)
+		// 		perror("Error deleting file");
+		// 	delete inputFiles[fileCount + 1];
+		// 	inputFiles.pop_back();
+		// }
 	}
 
 	// Last step: external merge sort that deals with data size 12.5GB
