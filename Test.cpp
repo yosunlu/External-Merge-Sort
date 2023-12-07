@@ -498,7 +498,8 @@ int main(int argc, char *argv[])
 	/****** does not consider decimals, for example 1.5GB) *********************/
 	/***************************************************************************/
 
-	if (numRecord_leftOverOf100MB && numOfRecord > 100000)
+	// if (numRecord_leftOverOf100MB && numOfRecord > 100000)
+	if (numRecord_leftOverOf100MB && numOfRecord > numOfRec100MB)
 	{
 
 		// for example: 125MB, 125,000 records, only has 1 * 100000
@@ -619,14 +620,15 @@ int main(int argc, char *argv[])
 		// for example : 50.5MB = 55000 records
 
 		// numRecord_leftOverOf100MB = 55,500
-		int numOf1MBruns = numRecord_leftOverOf100MB / 1000; // 55
+		// int numOf1MBruns = numRecord_leftOverOf100MB / 1000; // 55
+		int numOf1MBruns = numRecord_leftOverOf100MB / numOfRec1MB; // 55
 		traceprintf("================%i==========\n", numOf1MBruns);
 
 		// // quick sort the 50.5MB and store in dram (daraRecords)
 		// // when completed, there will be 50 sorted 1MB runs in dram
 		for (int i = 0; i < numOf1MBruns; i++)
 		{
-			Plan *const plan_phase1 = new SortPlan(new ScanPlan(1000), RUN_PHASE_1, inputFiles, 0, 0);
+			Plan *const plan_phase1 = new SortPlan(new ScanPlan(numOfRec1MB), RUN_PHASE_1, inputFiles, 0, 0);
 			Iterator *const it_1 = plan_phase1->init();
 			it_1->run();
 
