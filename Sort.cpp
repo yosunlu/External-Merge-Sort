@@ -115,6 +115,8 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		qs(records, 0, _consumed - 1);
 		dataRecords.push_back(records);
 	}
+
+	// Merge sort 100MB runs in DRAM and output to SSD
 	else if (_plan->_state == RUN_PHASE_2)
 	{
 
@@ -168,7 +170,12 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		}
 
 		std::stringstream filename;
-		filename << "SSD-10GB/output_" << _fileCount << ".txt";
+		// 125MB : left over of 25MB should go to SSD
+		// 50MB : should go to output directly
+		if (numOfRecord < 100000)
+			filename << "output/final_output.txt";
+		else
+			filename << "SSD-10GB/output_" << _fileCount << ".txt";
 
 		// if (_consumed == 100000)
 		// { // more than 10GB size records
@@ -346,11 +353,10 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 
 		int *bucketTotalSizeTable = new int[numOfbuckets]();
 		for (int i = 0; i < numOfbuckets - 1; i++)
-		{
 			bucketTotalSizeTable[i] = 100000; // for normal 100MB sorted file , number of record is 100000
-		}
 
 		// mode 0: 2GB or 10xGB, mode 1: 125MB
+		// if 125MB case, last bucket will only have 25,000 records
 		bucketTotalSizeTable[numOfbuckets - 1] = mode ? _consumed % 100000 : 100000;
 		traceprintf("=====%i=====\n", bucketTotalSizeTable[1]);
 

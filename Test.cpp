@@ -355,6 +355,8 @@ int main(int argc, char *argv[])
 	/****** does not consider decimals, for example 1.5GB) *********************/
 	/***************************************************************************/
 
+	// 12GB: leftover of 10GB is 2,000,000 ; no leftover of 100MB
+	// 125MB: leftover of 10GB is 125,000; leftover of 100MB is 25,000
 	if (numRecord_leftOverOf10GB && !numRecord_leftOverOf100MB)
 	{
 		// for example 3GB; 3GB is 3,000,000 records; 1GB is 1,000,000 records
@@ -481,7 +483,7 @@ int main(int argc, char *argv[])
 	/****** does not consider decimals, for example 1.5GB) *********************/
 	/***************************************************************************/
 
-	if (numRecord_leftOverOf100MB)
+	if (numRecord_leftOverOf100MB && numOfRecord > 100000)
 	{
 
 		// for example: 125MB, 125,000 records, only has 1 * 100000
@@ -520,6 +522,7 @@ int main(int argc, char *argv[])
 
 		// leftover of the 100MBs
 		// if the leftover is 25MB, will sort this 25MB is DRAM and output to SSD
+		// first read and quick sort the 25MB left
 		int MBleft = numRecord_leftOverOf100MB / 1000;
 
 		for (int j = 0; j < MBleft; ++j)
@@ -534,7 +537,6 @@ int main(int argc, char *argv[])
 
 		// merge sort the numRecord_leftOverOf100MB data created in DRAM, and output to SSD
 		// 25MB is 25000 records
-
 		Plan *const plan = new SortPlan(new ScanPlan(numRecord_leftOverOf100MB * 1000), RUN_PHASE_2, inputFiles, i, 0); // 100000 records is 100MB
 		Iterator *const it = plan->init();
 		it->run();
@@ -577,19 +579,66 @@ int main(int argc, char *argv[])
 		delete plan_1;
 
 		// after outputting the 100 * 100MB (10GB) sorted file to HDD, clear the SSD
-		// for (int fileCount = 0; fileCount < numOf100MB + 1; ++fileCount)
-		// {
-		// 	std::stringstream filename;
-		// 	filename << "SSD-10GB/output_" << fileCount << ".txt";
+		for (int fileCount = 0; fileCount < numOf100MB + 1; ++fileCount)
+		{
+			std::stringstream filename;
+			filename << "SSD-10GB/output_" << fileCount << ".txt";
 
-		// 	// Convert the stringstream to a string and then to a path
-		// 	std::string file_to_delete = filename.str();
+			// Convert the stringstream to a string and then to a path
+			std::string file_to_delete = filename.str();
 
-		// 	if (std::remove(file_to_delete.c_str()) != 0)
-		// 		perror("Error deleting file");
-		// 	delete inputFiles[fileCount + 1];
-		// 	inputFiles.pop_back();
-		// }
+			if (std::remove(file_to_delete.c_str()) != 0)
+				perror("Error deleting file");
+			delete inputFiles[fileCount + 1];
+			inputFiles.pop_back();
+		}
+	}
+
+	/***************************************************************************/
+	/******************* less than 100MB data leftover *************************/
+	/****************** can handle decimals, like 50.5MB ***********************/
+	/***************************************************************************/
+
+	if (numRecord_leftOverOf100MB)
+	{
+		// for example : 50.5MB = 55000 records
+
+		// numRecord_leftOverOf100MB = 55,500
+		int numOf1MBruns = numRecord_leftOverOf100MB / 1000; // 55
+		traceprintf("================%i==========\n", numOf1MBruns);
+
+		// // quick sort the 50.5MB and store in dram (daraRecords)
+		// // when completed, there will be 50 sorted 1MB runs in dram
+		for (int i = 0; i < numOf1MBruns; i++)
+		{
+			Plan *const plan_phase1 = new SortPlan(new ScanPlan(1000), RUN_PHASE_1, inputFiles, 0, 0);
+			Iterator *const it_1 = plan_phase1->init();
+			it_1->run();
+
+			delete it_1;
+			delete plan_phase1;
+		}
+
+		// // there are less than 1MB of data left, for example 55,500 records: 500 records left, which is 500KB
+		if (numRecord_leftOverOf1MB)
+		{
+			Plan *const plan_phase1 = new SortPlan(new ScanPlan(numRecord_leftOverOf1MB), RUN_PHASE_1, inputFiles, 0, 0);
+			Iterator *const it_1 = plan_phase1->init();
+			it_1->run();
+
+			delete it_1;
+			delete plan_phase1;
+		}
+
+		Plan *const plan_phase2 = new SortPlan(new ScanPlan(numRecord_leftOverOf100MB), RUN_PHASE_2, inputFiles, 0, 0);
+		Iterator *const it_2 = plan_phase2->init();
+		it_2->run();
+
+		delete it_2;
+		delete plan_phase2;
+
+		closeInputFiles(inputFiles);
+		inputFiles.pop_back();
 	}
 
 	// /***** less than 100MB data left (does consider decimals, for example 32.5MB); now only handles total size  less than 100MB  *****/
