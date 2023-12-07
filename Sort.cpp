@@ -7,6 +7,7 @@
 #include <fstream>
 #include <memory>
 #include <sstream>
+#include "TraceFile.h"
 
 // #define REC_SIZE 1000
 #define MB 1000000LL

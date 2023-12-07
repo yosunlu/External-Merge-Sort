@@ -15,6 +15,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <vector>
+#include "TraceFile.h"
 
 // long numOfRecord = 0;
 // long record_size = 0;
@@ -68,6 +69,10 @@ int main(int argc, char *argv[])
 		std::cerr << "All options -c, -s, and -o must be provided" << std::endl;
 		exit(EXIT_FAILURE);
 	}
+
+	TraceFile tracefile(output_file);
+	tracefile.trace(RUN_PHASE_1);
+	tracefile.trace(RUN_PHASE_2);
 
 	// create input directory
 	const char *directoryName = "input";
@@ -259,6 +264,8 @@ int main(int argc, char *argv[])
 			// when the for loop ends, there will be one dataRecord which is 100MB
 			for (int j = 0; j < 100; ++j)
 			{
+				// if (s == 0 && i == 0 && j == 0)
+				// 	tracefile.trace(RUN_PHASE_1);
 				Plan *const plan = new SortPlan(new ScanPlan(numOfRec1MB), RUN_PHASE_1, inputFiles, 0, 0); // quick sort 1MB of data and repeat 100 times
 				Iterator *const it = plan->init();
 				it->run();
