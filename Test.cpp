@@ -1,23 +1,24 @@
+#include "DataRecord.h"
+#include "Dram.h"
+#include "Filter.h"
 #include "Iterator.h"
 #include "Scan.h"
-#include "Filter.h"
 #include "Sort.h"
-#include "gen.h"
 #include "SortState.h"
-#include <iostream>
-#include <cstdlib>
-#include <unistd.h>
-#include <sys/stat.h>
-#include "DataRecord.h"
-#include <fstream>
-#include "Dram.h"
-#include <vector>
-#include <sstream>
-#include <cstdio>
+#include "gen.h"
 #include "global.h"
+#include <cstdio>
+#include <cstdlib>
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <vector>
 
 // long numOfRecord = 0;
 // long record_size = 0;
+#define MB 1000000LL
 
 // Function to close all files in the vector
 void closeInputFiles(std::vector<std::ifstream *> &inputFiles)
@@ -181,11 +182,23 @@ int main(int argc, char *argv[])
 		std::cerr << "Path exists but is not a directory." << std::endl;
 	}
 
+	// 1MB number of record
+	long long numOfRec1MB = MB / record_size;
+	// 100MB number of record
+	long long numOfRec100MB = MB * 100 / record_size;
+	// 1GB number of record
+	long long numOfRec1GB = 100 * 100 * MB / record_size;
+	// 10GB number of record
+	long long numOfRec10GB = 100 * 100 * MB / record_size;
 	// how many 10GB file to be generated
-	int numOf10GBs = numOfRecord / 10000000;			   // 10GB is 10,000,000 records
-	int numRecord_leftOverOf10GB = numOfRecord % 10000000; // if 115GB, leftover is 5GB, which is 5,000,000 records
-	int numRecord_leftOverOf100MB = numRecord_leftOverOf10GB % 100000;
-	int numRecord_leftOverOf1MB = numRecord_leftOverOf100MB % 1000;
+	// int numOf10GBs = numOfRecord / 10000000;			   // 10GB is 10,000,000 records
+	int numOf10GBs = numOfRecord / numOfRec10GB; // 10GB is 10,000,000 records
+	// int numRecord_leftOverOf10GB = numOfRecord % 10000000; // if 115GB, leftover is 5GB, which is 5,000,000 records
+	int numRecord_leftOverOf10GB = numOfRecord % numOfRec10GB; // if 115GB, leftover is 5GB, which is 5,000,000 records
+	// int numRecord_leftOverOf100MB = numRecord_leftOverOf10GB % 100000;
+	int numRecord_leftOverOf100MB = numRecord_leftOverOf10GB % numOfRec100MB;
+	// int numRecord_leftOverOf1MB = numRecord_leftOverOf100MB % 1000;
+	int numRecord_leftOverOf1MB = numRecord_leftOverOf100MB % numOfRec1MB;
 
 	/**
 	120GB: 120,000,000 records
@@ -237,7 +250,7 @@ int main(int argc, char *argv[])
 			// when the for loop ends, there will be one dataRecord which is 100MB
 			for (int j = 0; j < 100; ++j)
 			{
-				Plan *const plan = new SortPlan(new ScanPlan(1000), RUN_PHASE_1, inputFiles, 0, 0); // quick sort 1MB of data and repeat 100 times
+				Plan *const plan = new SortPlan(new ScanPlan(numOfRec1MB), RUN_PHASE_1, inputFiles, 0, 0); // quick sort 1MB of data and repeat 100 times
 				Iterator *const it = plan->init();
 				it->run();
 
@@ -246,11 +259,11 @@ int main(int argc, char *argv[])
 			}
 
 			// merge sort the 100MB data created in DRAM, and output to SSD
-			Plan *const plan = new SortPlan(new ScanPlan(100000), RUN_PHASE_2, inputFiles, i, 0); // 100000 records is 100MB
+			Plan *const plan = new SortPlan(new ScanPlan(numOfRec100MB), RUN_PHASE_2, inputFiles, i, 0); // 100000 records is 100MB
 			Iterator *const it = plan->init();
 			it->run();
 
-			for (int i = 0; i < 100; ++i)
+			for (std::vector<DataRecord *>::size_type i = 0; i < dataRecords.size(); ++i)
 			{
 				delete[] dataRecords[i];
 			}
@@ -280,11 +293,13 @@ int main(int argc, char *argv[])
 		}
 
 		// merge sort the 100 * 100MB files in SSD, and output to HDD
-		Plan *const plan = new SortPlan(new ScanPlan(10000000), EXTERNAL_PHASE_1, inputFiles, 0, s);
+		// For 1KB: 100 * 100MB = 10,000,000 records
+		// For 50 bytes: 100 * 100MB = 200,000,000 records
+		Plan *const plan = new SortPlan(new ScanPlan(numOfRec10GB), EXTERNAL_PHASE_1, inputFiles, 0, s);
 		Iterator *const it = plan->init();
 		it->run();
 
-		for (int i = 0; i < 100; ++i)
+		for (std::vector<DataRecord *>::size_type i = 0; i < dataRecords.size(); ++i)
 		{
 			delete[] dataRecords[i];
 		}
@@ -360,9 +375,10 @@ int main(int argc, char *argv[])
 	if (numRecord_leftOverOf10GB && !numRecord_leftOverOf100MB)
 	{
 		// for example 3GB; 3GB is 3,000,000 records; 1GB is 1,000,000 records
-		int numOfGBs = numRecord_leftOverOf10GB / 1000000; // 3
+		// For 1KB record: 1GB is 1,000,000 records
+		// For 50 byte record: 1GB is 20,000,000 records
+		int numOfGBs = numRecord_leftOverOf10GB / numOfRec1GB; // 3
 		int numOf100MBruns = numOfGBs * 10;
-
 		// each iteration will create a sorted numOf100MBruns file to SSD
 		// when the for loop ends, there will be numOf100MBruns * 100MB files in SSD
 		for (int i = 0; i < numOf100MBruns; i++) // numOfGBs * 10 * 100MB dataRecords
@@ -371,7 +387,7 @@ int main(int argc, char *argv[])
 			// when the for loop ends, there will be one dataRecord which is 100MB
 			for (int j = 0; j < 100; ++j)
 			{
-				Plan *const plan = new SortPlan(new ScanPlan(1000), RUN_PHASE_1, inputFiles, 0, 0); // quick sort 1MB of data and repeat 100 times
+				Plan *const plan = new SortPlan(new ScanPlan(numOfRec1MB), RUN_PHASE_1, inputFiles, 0, 0); // quick sort 1MB of data and repeat 100 times
 				Iterator *const it = plan->init();
 				it->run();
 
@@ -380,17 +396,15 @@ int main(int argc, char *argv[])
 			}
 
 			// merge sort the 100MB data created in DRAM, and output to SSD
-			Plan *const plan = new SortPlan(new ScanPlan(100000), RUN_PHASE_2, inputFiles, i, 0); // 100000 records is 100MB
+			Plan *const plan = new SortPlan(new ScanPlan(numOfRec100MB), RUN_PHASE_2, inputFiles, i, 0); // 100000 records is 100MB
 			Iterator *const it = plan->init();
 			it->run();
-
-			for (int i = 0; i < 100; ++i)
+			for (std::vector<DataRecord *>::size_type i = 0; i < dataRecords.size(); ++i)
 			{
 				delete[] dataRecords[i];
 			}
 
 			dataRecords.clear();
-
 			delete it;
 			delete plan;
 		}
@@ -413,7 +427,8 @@ int main(int argc, char *argv[])
 		}
 
 		// merge sort the numOf100MBruns * 100MB files in SSD, and output to HDD
-		Plan *const plan = new SortPlan(new ScanPlan(numOfGBs * 1000000), EXTERNAL_PHASE_1, inputFiles, 0, 0);
+		// Plan *const plan = new SortPlan(new ScanPlan(numOfGBs * 1000000), EXTERNAL_PHASE_1, inputFiles, 0, 0);
+		Plan *const plan = new SortPlan(new ScanPlan(numOfGBs * numOfRec1GB), EXTERNAL_PHASE_1, inputFiles, 0, 0);
 		Iterator *const it = plan->init();
 		it->run();
 
@@ -487,7 +502,9 @@ int main(int argc, char *argv[])
 	{
 
 		// for example: 125MB, 125,000 records, only has 1 * 100000
-		int numOf100MB = numOfRecord / 100000;
+		// int numOf100MB = numOfRecord / 100000;
+		int numOf100MB = numOfRecord * record_size / (100 * MB);
+
 		// each iteration will create a 100MB sorted file to SSD
 		int i = 0;
 		for (; i < numOf100MB; i++)
@@ -496,20 +513,19 @@ int main(int argc, char *argv[])
 			// when the for loop ends, there will be one dataRecord (DRAM) which is 100MB
 			for (int j = 0; j < 100; ++j)
 			{
-				Plan *const plan = new SortPlan(new ScanPlan(1000), RUN_PHASE_1, inputFiles, 0, 0); // quick sort 1MB of data and repeat 100 times
+				Plan *const plan = new SortPlan(new ScanPlan(numOfRec1MB), RUN_PHASE_1, inputFiles, 0, 0); // quick sort 1MB of data and repeat 100 times
 				Iterator *const it = plan->init();
 				it->run();
 
 				delete it;
 				delete plan;
 			}
-
 			// merge sort the 100MB data created in DRAM, and output to SSD
-			Plan *const plan = new SortPlan(new ScanPlan(100000), RUN_PHASE_2, inputFiles, i, 0); // 100000 records is 100MB
+			Plan *const plan = new SortPlan(new ScanPlan(numOfRec100MB), RUN_PHASE_2, inputFiles, i, 0); // 100000 records is 100MB
 			Iterator *const it = plan->init();
 			it->run();
 
-			for (int i = 0; i < 100; ++i)
+			for (std::vector<DataRecord *>::size_type i = 0; i < dataRecords.size(); ++i)
 			{
 				delete[] dataRecords[i];
 			}
@@ -522,12 +538,11 @@ int main(int argc, char *argv[])
 
 		// leftover of the 100MBs
 		// if the leftover is 25MB, will sort this 25MB is DRAM and output to SSD
-		// first read and quick sort the 25MB left
-		int MBleft = numRecord_leftOverOf100MB / 1000;
-
+		// int MBleft = numRecord_leftOverOf100MB / 1000;
+		int MBleft = numRecord_leftOverOf100MB / numOfRec1MB;
 		for (int j = 0; j < MBleft; ++j)
 		{
-			Plan *const plan = new SortPlan(new ScanPlan(1000), RUN_PHASE_1, inputFiles, 0, 0); // quick sort 1MB of data and repeat numRecord_leftOverOf100MB times
+			Plan *const plan = new SortPlan(new ScanPlan(numOfRec1MB), RUN_PHASE_1, inputFiles, 0, 0); // quick sort 1MB of data and repeat numRecord_leftOverOf100MB times
 			Iterator *const it = plan->init();
 			it->run();
 
@@ -537,7 +552,8 @@ int main(int argc, char *argv[])
 
 		// merge sort the numRecord_leftOverOf100MB data created in DRAM, and output to SSD
 		// 25MB is 25000 records
-		Plan *const plan = new SortPlan(new ScanPlan(numRecord_leftOverOf100MB * 1000), RUN_PHASE_2, inputFiles, i, 0); // 100000 records is 100MB
+		// Plan *const plan = new SortPlan(new ScanPlan(numRecord_leftOverOf100MB * 1000), RUN_PHASE_2, inputFiles, i, 0); // 100000 records is 100MB
+		Plan *const plan = new SortPlan(new ScanPlan(MBleft * numOfRec1MB), RUN_PHASE_2, inputFiles, i, 0); // 100000 records is 100MB
 		Iterator *const it = plan->init();
 		it->run();
 
@@ -547,7 +563,6 @@ int main(int argc, char *argv[])
 		}
 
 		dataRecords.clear();
-
 		delete it;
 		delete plan;
 

@@ -1,15 +1,16 @@
-#include <fstream>
 #include "Sort.h"
-#include "Scan.h"
-#include <fstream>
 #include "Dram.h"
 #include "Leaf.h"
 #include "PQ.h"
-#include <sstream>
+#include "Scan.h"
 #include "global.h"
+#include <fstream>
 #include <memory>
+#include <sstream>
 
 // #define REC_SIZE 1000
+#define MB 1000000LL
+#define KB 1000
 
 SortPlan::SortPlan(Plan *const input, SortState state, std::vector<std::ifstream *> inputFiles, int fileCount, int HDD_10GB_count) : _input(input), _state(state), _inputFiles(inputFiles), _fileCount(fileCount), _HDD_10GB_count(HDD_10GB_count)
 {
@@ -120,8 +121,12 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 	else if (_plan->_state == RUN_PHASE_2)
 	{
 
-		int sizeOfBucket = 1000; // 1000 records per bucket
-		int numRecord_leftOverOf1MB = _consumed % 1000;
+		// int sizeOfBucket = 1000; // 1000 records per bucket
+		// For 1 KB: 1 MB/1 KB = 1000 records per bucket
+		// For 50 bytes: 1 MB/50 bytes = 20,000 records per bucket
+		int sizeOfBucket = MB / record_size;
+		// int numRecord_leftOverOf1MB = _consumed % 1000;
+		int numRecord_leftOverOf1MB = _consumed % sizeOfBucket;
 		int const buckets = dataRecords.size();
 		int copyNum = buckets; // copyNum = buckets = 100
 		int targetlevel = 0;
@@ -130,8 +135,13 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		// useful when there are leftovers (32 * 1000 records, and 1 * 500 records)
 		int *bucketSizeTable = new int[buckets]();
 		for (int i = 0; i < buckets - 1; i++)
-			bucketSizeTable[i] = 1000;
-		bucketSizeTable[buckets - 1] = numRecord_leftOverOf1MB ? numRecord_leftOverOf1MB : 1000;
+		{
+			// bucketSizeTable[i] = 1000;
+			bucketSizeTable[i] = sizeOfBucket;
+		}
+
+		// bucketSizeTable[buckets - 1] = numRecord_leftOverOf1MB ? numRecord_leftOverOf1MB : 1000;
+		bucketSizeTable[buckets - 1] = numRecord_leftOverOf1MB ? numRecord_leftOverOf1MB : sizeOfBucket;
 
 		while (copyNum >>= 1)
 			++targetlevel;
@@ -278,6 +288,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		}
 
 		outputFile.close();
+		delete[] hashtable;
 	}
 
 	/***************************************/
@@ -289,9 +300,15 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 	else if (_plan->_state == EXTERNAL_PHASE_1)
 	{
 		// mode 0: 2GB or 10xGB, mode 1: 125MB
-		bool mode = _consumed < 1000000; // 1GB
+		// Rec size 1KB, 1GB = 1000*1000KB = 1,000,000 records
+		// Rec size 50 bytes, 1GB = 1000*1000KB = 20,000,000 records
+		int numOfRec1GB = 1000 * MB / record_size;
+		bool mode = _consumed < static_cast<RowCount>(numOfRec1GB); // 1GB
 
-		int numOf100MBruns = _consumed / 100000;
+		int numOfRec100MB = MB * 100 / record_size;
+		// int numOf100MBruns = _consumed / 100000;
+		int numOf100MBruns = _consumed / numOfRec100MB;
+
 		// if handling 100MB's leftover, for example 25MB in 125MB
 		// number of bucket should ++
 		if (mode)
@@ -301,14 +318,18 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		// 12GB is 120,000,000; devided it by 10GB size of record
 		// this 2GB will become another HDD output
 		// this variable will be used later to name file
-		int singleDigitGBleft = _consumed % 10000000 == 0 ? 0 : 1;
+		// Rec size 1KB, 10GB = 10*1000*1000KB = 10,000,000 records
+		// int singleDigitGBleft = _consumed % 10000000 == 0 ? 0 : 1;
+		long long numOfRec10GB = 10 * 1000 * MB / record_size;
+		int singleDigitGBleft = _consumed % numOfRec10GB == 0 ? 0 : 1;
+		int numOfRec1MB = MB / record_size;
 
 		// read the 1MB from each 100MB on SSD
 		for (int i = 1; i < numOf100MBruns + 1; i++)
 		{
-			DataRecord *records = new DataRecord[1000]();
+			DataRecord *records = new DataRecord[numOfRec1MB]();
 
-			for (int j = 0; j < 1000; j++)
+			for (int j = 0; j < numOfRec1MB; j++)
 			{
 				char *row = new char[record_size];
 				_inputFiles[i]->read(row, record_size);
@@ -346,18 +367,22 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		// 1 MB = 8KB * 125
 		// 8KB = 8 records
 		// 8 * 125 records per bucket
-		int sizeOfBucket = 1000;
+		// For record size 50 byte: 8KB = 8*20 records
+		int sizeOfBucket = numOfRec1MB;
 		int const numOfbuckets = numOf100MBruns; // 100MB/1MB = 100 = fan-in
 		int copyNum = numOfbuckets;				 // copyNum = buckets = 100
 		int targetlevel = 0;
 
 		int *bucketTotalSizeTable = new int[numOfbuckets]();
 		for (int i = 0; i < numOfbuckets - 1; i++)
-			bucketTotalSizeTable[i] = 100000; // for normal 100MB sorted file , number of record is 100000
+		{
+			// bucketTotalSizeTable[i] = 100000; // for normal 100MB sorted file , number of record is 100000
+			bucketTotalSizeTable[i] = numOfRec100MB;
+		}
 
 		// mode 0: 2GB or 10xGB, mode 1: 125MB
-		// if 125MB case, last bucket will only have 25,000 records
-		bucketTotalSizeTable[numOfbuckets - 1] = mode ? _consumed % 100000 : 100000;
+		// bucketTotalSizeTable[numOfbuckets - 1] = mode ? _consumed % 100000 : 100000;
+		bucketTotalSizeTable[numOfbuckets - 1] = mode ? _consumed % numOfRec100MB : numOfRec100MB;
 		traceprintf("=====%i=====\n", bucketTotalSizeTable[1]);
 
 		while (copyNum >>= 1)
@@ -428,7 +453,8 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		int count = 0; // current count of the records being popped
 
 		// output buffer : 1MB
-		DataRecord *outputBuf = new DataRecord[1000]();
+		// DataRecord *outputBuf = new DataRecord[1000]();
+		DataRecord *outputBuf = new DataRecord[numOfRec1MB]();
 		int outputBufCnt = 0;
 		// int outputTotalCnt = 0;
 		while (static_cast<RowCount>(count) < _consumed)
@@ -441,7 +467,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 			}
 			// std::strcpy(output[count], ::data[idx]);
 			// std::strcpy(output[count], ::leaf[idx].data());
-			if (outputBufCnt < 1000)
+			if (outputBufCnt < numOfRec1MB)
 			{
 				DataRecord *inner = dataRecords.at(idx);
 				// idx tells which leaf; hashtable[idx] returns the next pointer to the record
@@ -453,7 +479,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 			{
 				// if output buffer has 1000 records (1MB)
 				// write to HDD
-				for (int i = 0; i < 1000; i++)
+				for (int i = 0; i < numOfRec1MB; i++)
 				{
 					DataRecord output_record = outputBuf[i];
 					outputFile.write(output_record.getIncl(), incl_size);
@@ -479,15 +505,19 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 			// the total size of a bucket is 100MB = 100*1000 records
 			// %8 == 0 means current page had all beeb outputted
 			// from SSD input another page
-			if (cntPerBucket[idx] % 8 == 0 && cntPerBucket[idx] <= bucketTotalSizeTable[idx] - 1000)
+			// For 1KB record: 8KB = 8 records
+			// For 50 byte record: 8KB = 8*20 Records
+			int numOfRec8KB = 8 * KB / record_size;
+			if (cntPerBucket[idx] % numOfRec8KB == 0 && cntPerBucket[idx] <= bucketTotalSizeTable[idx] - numOfRec1MB)
 			{
 				// read 8KB = 8 records from SSD
 				DataRecord *inner = dataRecords.at(idx);
 				// traceprintf("inner incl: %s\n", inner[hashtable[idx]].getIncl());
 				int curHtPointer = hashtable[idx];
-				int startToFillPointer = curHtPointer - 7;
+				// int startToFillPointer = curHtPointer - 7;
+				int startToFillPointer = curHtPointer - (numOfRec8KB - 1);
 				// std::cout << "idx:"<< idx << ", startToFillPointer:" << startToFillPointer << ", to curHtPointer:"<< curHtPointer << std::endl;
-				for (int j = 0; j < 8; j++)
+				for (int j = 0; j < numOfRec8KB; j++)
 				{
 					char *row = new char[record_size];
 					_inputFiles[idx + 1]->read(row, record_size);
@@ -522,7 +552,8 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 				// }
 			}
 			// current 1MB bucket in Dram is empty, and there are records left in the 100MB: assign the pointer back to the beginning of the bucket
-			if (hashtable[idx] == 999 && cntPerBucket[idx] <= 100000)
+			// if (hashtable[idx] == 999 && cntPerBucket[idx] <= 100000)
+			if (hashtable[idx] == numOfRec1MB - 1 && cntPerBucket[idx] <= numOfRec100MB)
 			{
 				// std::cout << "------external phase 1 debug 8---------" << std::endl;
 				// std::cout << "idx:"<< idx << ", cntPerBucket[idx]:" << cntPerBucket[idx] << std::endl;
@@ -599,7 +630,8 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		}
 
 		// output last output buffer
-		for (int i = 0; i < 1000; i++)
+		// for (int i = 0; i < 1000; i++)
+		for (int i = 0; i < numOfRec1MB; i++)
 		{
 			// outputTotalCnt++;
 			DataRecord output_record = outputBuf[i];
@@ -628,9 +660,11 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 	else if (_plan->_state == EXTERNAL_PHASE_2)
 	{
 		// check if there's data between 1-10GB left, for example 12.5GB
-		int singleDigitGBleft = _consumed % 10000000 == 0 ? 0 : 1;
+		long long numOfRec10GB = 10 * 1000 * MB / record_size;
+		int numOfRec1MB = MB / record_size;
+		int singleDigitGBleft = _consumed % numOfRec10GB == 0 ? 0 : 1;
 		int const numOfbuckets = _HDD_10GB_count + singleDigitGBleft; // 12
-		int recordPerBucket = 100 / numOfbuckets * 1000;
+		int recordPerBucket = (100 / numOfbuckets) * numOfRec1MB;
 		// 120GB: (100 / 12) * 1000 records = 8MB  = 8MB; 8MB * 12 (buckets) = 96MB (4MB wasted for dram's 100MB)
 		// 110GB: (100 / 11) * 1000 records = 9MB  = 9MB; 9MB * 11 (buckets) = 99MB (1MB wasted for dram's 100MB)
 		// 12.5GB: (100 / 2) * 1000 records = 50MB = 50mb; 50MB * 2 (buckets) = 100MB
@@ -639,9 +673,12 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		// table to store the number of records for each buckets
 		// useful when there are leftovers (32 * 1000 records, and 1 * 500 records)
 		int *bucketTotalSizeTable = new int[numOfbuckets]();
-		for (int i = 0; i < numOfbuckets - 1; i++)
-			bucketTotalSizeTable[i] = 10000000; // for normal 10GB sorted file in HDD, size is 10000000
-		bucketTotalSizeTable[numOfbuckets - 1] = singleDigitGBleft ? _consumed % 10000000 : 10000000;
+		for (int i = 0; i < numOfbuckets - 1; i++){
+			// bucketTotalSizeTable[i] = 10000000; // for normal 10GB sorted file in HDD, size is 10000000
+			bucketTotalSizeTable[i] = numOfRec10GB; // for normal 10GB sorted file in HDD, size is 10000000
+		}
+		// bucketTotalSizeTable[numOfbuckets - 1] = singleDigitGBleft ? _consumed % 10000000 : 10000000;
+		bucketTotalSizeTable[numOfbuckets - 1] = singleDigitGBleft ? _consumed % numOfRec10GB : numOfRec10GB;
 
 		for (int i = 0; i < numOfbuckets; i++) // input data from HDD to dram
 		{
@@ -734,7 +771,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		int count = 0; // current count of the records being popped
 
 		// output buffer : 1MB
-		DataRecord *outputBuf = new DataRecord[1000]();
+		DataRecord *outputBuf = new DataRecord[numOfRec1MB]();
 		int outputBufCnt = 0;
 
 		while (static_cast<RowCount>(count) < _consumed)
@@ -743,7 +780,8 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 			if (idx == -1)
 				break;
 
-			if (outputBufCnt < 1000)
+			// if (outputBufCnt < 1000)
+			if (outputBufCnt < numOfRec1MB)
 			{
 				DataRecord *inner = dataRecords.at(idx); // inner is a pointer to 1000 records, each 1kb; dataRecords store 100 such pointers
 				// idx tells which leaf; hashtable[idx] returns the next pointer to the record
@@ -755,7 +793,8 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 			{
 				// if output buffer have 1000 records(1MB)
 				// write to HDD
-				for (int i = 0; i < 1000; i++)
+				// for (int i = 0; i < 1000; i++)
+				for (int i = 0; i < numOfRec1MB; i++)
 				{
 					// outputTotalCnt++;
 					DataRecord output_record = outputBuf[i];
@@ -782,14 +821,17 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 			// %1000 == 0 means current 8MB bucket has 1MB (1000 records) outputted
 			// from HDD input another 1MB
 			// 10GB is 10,000,000 records; the first 8,000 records was in the initialization of Dram
-			if (cntPerBucket[idx] % 1000 == 0 && cntPerBucket[idx] <= bucketTotalSizeTable[idx] - recordPerBucket) // 9,992,000
+			// if (cntPerBucket[idx] % 1000 == 0 && cntPerBucket[idx] <= bucketTotalSizeTable[idx] - recordPerBucket) // 9,992,000
+			if (cntPerBucket[idx] % numOfRec1MB == 0 && cntPerBucket[idx] <= bucketTotalSizeTable[idx] - recordPerBucket) // 9,992,000
 			{
 				// read 1MB = 1000 records from HDD
 				DataRecord *inner = dataRecords.at(idx);
 				int curHtPointer = hashtable[idx];
-				int startToFillPointer = curHtPointer - 999; // the records before startToFillPointer have been outputted
+				// int startToFillPointer = curHtPointer - 999; // the records before startToFillPointer have been outputted
+				int startToFillPointer = curHtPointer - (numOfRec1MB - 1); // the records before startToFillPointer have been outputted
 				// std::cout << "idx:"<< idx << ", startToFillPointer:" << startToFillPointer << ", to curHtPointer:"<< curHtPointer << std::endl;
-				for (int j = 0; j < 1000; j++)
+				// for (int j = 0; j < 1000; j++)
+				for (int j = 0; j < numOfRec1MB; j++)
 				{
 					char *row = new char[record_size];
 					_inputFiles[idx]->read(row, record_size);
@@ -819,7 +861,7 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 				}
 			}
 			// current 8MB bucket in Dram is empty, and there are records left in the 10GB bucket: assign the pointer back to the beginning of the bucket
-			if (hashtable[idx] == recordPerBucket - 1 && cntPerBucket[idx] <= 10000000)
+			if (hashtable[idx] == recordPerBucket - 1 && cntPerBucket[idx] <= numOfRec10GB)
 			{
 				// std::cout << "------external phase 1 debug 8---------" << std::endl;
 				// std::cout << "idx:"<< idx << ", cntPerBucket[idx]:" << cntPerBucket[idx] << std::endl;
@@ -893,7 +935,8 @@ SortIterator::SortIterator(SortPlan const *const plan) : _plan(plan), _input(pla
 		}
 
 		// output last output buffer
-		for (int i = 0; i < 1000; i++)
+		// for (int i = 0; i < 1000; i++)
+		for (int i = 0; i < numOfRec1MB; i++)
 		{
 			// outputTotalCnt++;
 			DataRecord output_record = outputBuf[i];
