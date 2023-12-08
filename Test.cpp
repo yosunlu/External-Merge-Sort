@@ -71,8 +71,12 @@ int main(int argc, char *argv[])
 	}
 
 	TraceFile tracefile(output_file);
-	tracefile.trace(RUN_PHASE_1);
-	tracefile.trace(RUN_PHASE_2);
+	// tracefile.trace(RUN_PHASE_1);
+	// tracefile.trace(RUN_PHASE_2);
+	// tracefile.trace(EXTERNAL_PHASE_1_1);
+	// tracefile.trace(EXTERNAL_PHASE_1_2);
+	// tracefile.trace(EXTERNAL_PHASE_2_1);
+	// tracefile.trace(EXTERNAL_PHASE_2_2);
 
 	// create input directory
 	const char *directoryName = "input";
@@ -264,8 +268,8 @@ int main(int argc, char *argv[])
 			// when the for loop ends, there will be one dataRecord which is 100MB
 			for (int j = 0; j < 100; ++j)
 			{
-				// if (s == 0 && i == 0 && j == 0)
-				// 	tracefile.trace(RUN_PHASE_1);
+				if (s == 0 && i == 0 && j == 0)
+					tracefile.trace(RUN_PHASE_1);
 				Plan *const plan = new SortPlan(new ScanPlan(numOfRec1MB), RUN_PHASE_1, inputFiles, 0, 0); // quick sort 1MB of data and repeat 100 times
 				Iterator *const it = plan->init();
 				it->run();
@@ -273,7 +277,8 @@ int main(int argc, char *argv[])
 				delete it;
 				delete plan;
 			}
-
+			if (s == 0 && i == 0)
+				tracefile.trace(RUN_PHASE_2);
 			// merge sort the 100MB data created in DRAM, and output to SSD
 			Plan *const plan = new SortPlan(new ScanPlan(numOfRec100MB), RUN_PHASE_2, inputFiles, i, 0); // 100000 records is 100MB
 			Iterator *const it = plan->init();
@@ -311,9 +316,16 @@ int main(int argc, char *argv[])
 		// merge sort the 100 * 100MB files in SSD, and output to HDD
 		// For 1KB: 100 * 100MB = 10,000,000 records
 		// For 50 bytes: 100 * 100MB = 200,000,000 records
+
 		Plan *const plan = new SortPlan(new ScanPlan(numOfRec10GB), EXTERNAL_PHASE_1, inputFiles, 0, s);
 		Iterator *const it = plan->init();
 		it->run();
+
+		if (s == 0)
+		{
+			tracefile.trace(EXTERNAL_PHASE_1_1);
+			tracefile.trace(EXTERNAL_PHASE_1_2);
+		}
 
 		for (std::vector<DataRecord *>::size_type i = 0; i < dataRecords.size(); ++i)
 		{
@@ -369,6 +381,8 @@ int main(int argc, char *argv[])
 		Plan *const plan = new SortPlan(new ScanPlan(numOfRecord), EXTERNAL_PHASE_2, inputFiles, 0, numOf10GBs);
 		Iterator *const it = plan->init();
 		it->run();
+		tracefile.trace(EXTERNAL_PHASE_2_1);
+		tracefile.trace(EXTERNAL_PHASE_2_2);
 
 		// clear the 10GB sorted input files in SSD
 		closeInputFiles(inputFiles);
@@ -417,6 +431,7 @@ int main(int argc, char *argv[])
 			Plan *const plan = new SortPlan(new ScanPlan(numOfRec100MB), RUN_PHASE_2, inputFiles, i, 0); // 100000 records is 100MB
 			Iterator *const it = plan->init();
 			it->run();
+
 			for (std::vector<DataRecord *>::size_type i = 0; i < dataRecords.size(); ++i)
 			{
 				delete[] dataRecords[i];
@@ -506,6 +521,9 @@ int main(int argc, char *argv[])
 		Iterator *const it = plan->init();
 		it->run();
 
+		tracefile.trace(EXTERNAL_PHASE_2_1);
+		tracefile.trace(EXTERNAL_PHASE_2_2);
+
 		// delete the 10GB files in SSD
 		closeInputFiles(inputFiles);
 		for (int i = 0; i < numOf10GBs + 1; ++i)
@@ -542,6 +560,9 @@ int main(int argc, char *argv[])
 
 				delete it;
 				delete plan;
+
+				if (i == 0 && j == 0)
+					tracefile.trace(RUN_PHASE_1);
 			}
 			// merge sort the 100MB data created in DRAM, and output to SSD
 			Plan *const plan = new SortPlan(new ScanPlan(numOfRec100MB), RUN_PHASE_2, inputFiles, i, 0); // 100000 records is 100MB
@@ -552,6 +573,8 @@ int main(int argc, char *argv[])
 			{
 				delete[] dataRecords[i];
 			}
+			if (i == 0)
+				tracefile.trace(RUN_PHASE_2);
 
 			dataRecords.clear();
 
@@ -606,6 +629,7 @@ int main(int argc, char *argv[])
 		Plan *const plan_1 = new SortPlan(new ScanPlan(numOfRecord), EXTERNAL_PHASE_1, inputFiles, 0, 0);
 		Iterator *const it_1 = plan_1->init();
 		it_1->run();
+		tracefile.trace(EXTERNAL_PHASE_1);
 
 		for (int i = 0; i < numOf100MB + 1; ++i)
 		{
@@ -654,6 +678,8 @@ int main(int argc, char *argv[])
 			Iterator *const it_1 = plan_phase1->init();
 			it_1->run();
 
+			if (i == 0)
+				tracefile.trace(RUN_PHASE_1);
 			delete it_1;
 			delete plan_phase1;
 		}
@@ -672,6 +698,7 @@ int main(int argc, char *argv[])
 		Plan *const plan_phase2 = new SortPlan(new ScanPlan(numRecord_leftOverOf100MB), RUN_PHASE_2, inputFiles, 0, 0);
 		Iterator *const it_2 = plan_phase2->init();
 		it_2->run();
+		tracefile.trace(RUN_PHASE_2);
 
 		delete it_2;
 		delete plan_phase2;
@@ -680,6 +707,7 @@ int main(int argc, char *argv[])
 		inputFiles.pop_back();
 	}
 
+	tracefile.trace(END);
 	return 0;
 } // main
 
@@ -725,3 +753,12 @@ int main(int argc, char *argv[])
 // // }
 
 // //****** debugging ends *********//
+
+// HDD_page_size = 100 * MB;
+// numOfPage = totalSize / HDD_page_size;
+// singlePageTransferTime = HDD_page_size / HDD_bandwidth;
+// double total_latency_100MB_HDD = numOfPage * (HDD_latency + singlePageTransferTime);
+
+// file << "latency: " << numOfPage * HDD_latency << "ms;  ";
+// file << "transfer time: " << static_cast<double>(numOfPage) * singlePageTransferTime << "ms;  ";
+// file << "total " << total_latency_100MB_HDD << "ms\n";
