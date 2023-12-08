@@ -15,6 +15,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <vector>
+#include "TraceFile.h"
 #include <dirent.h>
 #include <memory>
 
@@ -38,53 +39,68 @@ void closeInputFiles(std::vector<std::ifstream *> &inputFiles)
 }
 
 // Function to delete all files in a directory
-void deleteFilesInDirectory(const char *directoryName) {
-    DIR *dir = opendir(directoryName);
-    if (dir != nullptr) {
-        struct dirent *entry;
-        while ((entry = readdir(dir)) != nullptr) {
+void deleteFilesInDirectory(const char *directoryName)
+{
+	DIR *dir = opendir(directoryName);
+	if (dir != nullptr)
+	{
+		struct dirent *entry;
+		while ((entry = readdir(dir)) != nullptr)
+		{
 			const std::string fileName = entry->d_name;
 
 			// Skip deletion of . and ..
-			if (fileName != "." && fileName != "..") {
+			if (fileName != "." && fileName != "..")
+			{
 				std::string filePath = std::string(directoryName) + "/" + fileName;
-				if (remove(filePath.c_str()) != 0) {
+				if (remove(filePath.c_str()) != 0)
+				{
 					std::cerr << "Error deleting file: " << filePath << std::endl;
 				}
 			}
-        }
-        closedir(dir);
-    } else {
-        std::cerr << "Error opening directory." << std::endl;
-    }
+		}
+		closedir(dir);
+	}
+	else
+	{
+		std::cerr << "Error opening directory." << std::endl;
+	}
 }
 
 // Function to create a directory if it does not exist
-void createDirectory(const char *directoryName, bool ifDeletedAllFiles) {
-    struct stat info;
+void createDirectory(const char *directoryName, bool ifDeletedAllFiles)
+{
+	struct stat info;
 
-    if (stat(directoryName, &info) != 0) {
-        // Directory does not exist, try to create it
-        int dirCreationResult = mkdir(directoryName, 0777);
-        if (dirCreationResult == 0) {
-            std::cout << directoryName << " created successfully." << std::endl;
-        } else {
-            std::cerr << "Error creating " << directoryName << "." << std::endl;
-        }
-    } else if (info.st_mode & S_IFDIR)
+	if (stat(directoryName, &info) != 0)
 	{
-        // Directory already exists
-        std::cout << directoryName << " already exists." << std::endl;
-		if(ifDeletedAllFiles){
+		// Directory does not exist, try to create it
+		int dirCreationResult = mkdir(directoryName, 0777);
+		if (dirCreationResult == 0)
+		{
+			std::cout << directoryName << " created successfully." << std::endl;
+		}
+		else
+		{
+			std::cerr << "Error creating " << directoryName << "." << std::endl;
+		}
+	}
+	else if (info.st_mode & S_IFDIR)
+	{
+		// Directory already exists
+		std::cout << directoryName << " already exists." << std::endl;
+		if (ifDeletedAllFiles)
+		{
 			// Delete all files in the directory
 			deleteFilesInDirectory(directoryName);
 
 			std::cout << "All files in SSD directory deleted." << std::endl;
 		}
-    } else
+	}
+	else
 	{
 		// Path exists but is not a directory
-		std::cerr << directoryName <<  "exists but is not a directory." << std::endl;
+		std::cerr << directoryName << "exists but is not a directory." << std::endl;
 	}
 }
 
@@ -122,25 +138,33 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
+	TraceFile tracefile(output_file);
+	// tracefile.trace(RUN_PHASE_1);
+	// tracefile.trace(RUN_PHASE_2);
+	// tracefile.trace(EXTERNAL_PHASE_1_1);
+	// tracefile.trace(EXTERNAL_PHASE_1_2);
+	// tracefile.trace(EXTERNAL_PHASE_2_1);
+	// tracefile.trace(EXTERNAL_PHASE_2_2);
+
 	// create input directory
 	const char *directoryName = "input";
 	// Check if the directory exists and create if necessary
-    createDirectory(directoryName, false);
+	createDirectory(directoryName, false);
 
 	// create SSD directory
 	directoryName = "SSD-10GB";
 	// Check if the directory exists and create if necessary
-    createDirectory(directoryName, true);
+	createDirectory(directoryName, true);
 
 	// create HDD directory
 	directoryName = "HDD";
 	// Check if the directory exists and create if necessary
-    createDirectory(directoryName, true);
+	createDirectory(directoryName, true);
 
 	// create output directory
 	directoryName = "output";
 	// Check if the directory exists and create if necessary
-    createDirectory(directoryName, true);
+	createDirectory(directoryName, true);
 
 	// 1MB number of record
 	long long numOfRec1MB = MB / record_size;
@@ -219,6 +243,8 @@ int main(int argc, char *argv[])
 			// when the for loop ends, there will be one dataRecord which is 100MB
 			for (int j = 0; j < 100; ++j)
 			{
+				if (s == 0 && i == 0 && j == 0)
+					tracefile.trace(RUN_PHASE_1);
 				Plan *const plan = new SortPlan(new ScanPlan(numOfRec1MB), RUN_PHASE_1, inputFiles, 0, 0, false, 0); // quick sort 1MB of data and repeat 100 times
 				Iterator *const it = plan->init();
 				it->run();
@@ -226,7 +252,8 @@ int main(int argc, char *argv[])
 				delete it;
 				delete plan;
 			}
-
+			if (s == 0 && i == 0)
+				tracefile.trace(RUN_PHASE_2);
 			// merge sort the 100MB data created in DRAM, and output to SSD
 			Plan *const plan = new SortPlan(new ScanPlan(numOfRec100MB), RUN_PHASE_2, inputFiles, i, 0, false, 0); // 100000 records is 100MB
 			Iterator *const it = plan->init();
@@ -267,6 +294,12 @@ int main(int argc, char *argv[])
 		Plan *const plan = new SortPlan(new ScanPlan(numOfRec10GB), EXTERNAL_PHASE_1, inputFiles, 0, s, false, 0);
 		Iterator *const it = plan->init();
 		it->run();
+
+		if (s == 0)
+		{
+			tracefile.trace(EXTERNAL_PHASE_1_1);
+			tracefile.trace(EXTERNAL_PHASE_1_2);
+		}
 
 		for (std::vector<DataRecord *>::size_type i = 0; i < dataRecords.size(); ++i)
 		{
@@ -322,6 +355,8 @@ int main(int argc, char *argv[])
 		Plan *const plan = new SortPlan(new ScanPlan(numOfRecord), EXTERNAL_PHASE_2, inputFiles, 0, numOf10GBs, false, 0);
 		Iterator *const it = plan->init();
 		it->run();
+		tracefile.trace(EXTERNAL_PHASE_2_1);
+		tracefile.trace(EXTERNAL_PHASE_2_2);
 
 		// clear the 10GB sorted input files in SSD
 		closeInputFiles(inputFiles);
@@ -383,6 +418,7 @@ int main(int argc, char *argv[])
 			Plan *const plan = new SortPlan(new ScanPlan(numOfRec100MB), RUN_PHASE_2, inputFiles, i, 0, false, 0); // 100000 records is 100MB
 			Iterator *const it = plan->init();
 			it->run();
+
 			for (std::vector<DataRecord *>::size_type i = 0; i < dataRecords.size(); ++i)
 			{
 				delete[] dataRecords[i];
@@ -468,6 +504,9 @@ int main(int argc, char *argv[])
 		Iterator *const it = plan->init();
 		it->run();
 
+		tracefile.trace(EXTERNAL_PHASE_2_1);
+		tracefile.trace(EXTERNAL_PHASE_2_2);
+
 		// delete the 10GB files in SSD
 		closeInputFiles(inputFiles);
 		// for (int i = 0; i < numOf10GBs + 1; ++i)
@@ -529,7 +568,6 @@ int main(int argc, char *argv[])
 				if(i == numOf100MB - 1 && ifGraceful) {
 					// if numOfRec1MB of 50 bytes record is 20,000
 					// this will output inner[15,000]~inner[19,999] to SSD
-					std::cout << "-----debug graceful 1-----"  << std::endl;
 					std::stringstream filename;
 					filename << "SSD-10GB/output_graceful_" << j << ".txt";
 					std::ofstream outputFile(filename.str(), std::ios::binary | std::ios::app);
@@ -559,11 +597,13 @@ int main(int argc, char *argv[])
 
 				delete it;
 				delete plan;
+
+				if (i == 0 && j == 0)
+					tracefile.trace(RUN_PHASE_1);
 			}
 
 			// if is graceful degradation, read the last 25MB from input
 			if(i == numOf100MB - 1 && ifGraceful) {
-				std::cout << "----debug 1----" << std::endl;
 				for (int j = 0; j < 25; ++j)
 				{
 					Plan *const plan = new SortPlan(new ScanPlan(numOfRec1MB), RUN_PHASE_1, inputFiles, 0, 0, false, 0); // quick sort 1MB of data and repeat 100 times
@@ -578,7 +618,6 @@ int main(int argc, char *argv[])
 			if(i == numOf100MB - 1 && ifGraceful) {
 				// merge sort the 100MB data created in DRAM, and output to SSD
 				// 100 * 0.75MB data + 25 * 1MB
-				std::cout << "----debug 2----" << std::endl;
 				for (int j = 0; j < 100; j++)
 				{
 					std::stringstream filename;
@@ -620,6 +659,8 @@ int main(int argc, char *argv[])
 			{
 				delete[] dataRecords[i];
 			}
+			if (i == 0)
+				tracefile.trace(RUN_PHASE_2);
 
 			dataRecords.clear();
 
@@ -725,6 +766,8 @@ int main(int argc, char *argv[])
 			Iterator *const it_1 = plan_phase1->init();
 			it_1->run();
 
+			if (i == 0)
+				tracefile.trace(RUN_PHASE_1);
 			delete it_1;
 			delete plan_phase1;
 		}
@@ -743,6 +786,7 @@ int main(int argc, char *argv[])
 		Plan *const plan_phase2 = new SortPlan(new ScanPlan(numRecord_leftOverOf100MB), RUN_PHASE_2, inputFiles, 0, 0, false, 0);
 		Iterator *const it_2 = plan_phase2->init();
 		it_2->run();
+		tracefile.trace(RUN_PHASE_2);
 
 		delete it_2;
 		delete plan_phase2;
@@ -751,6 +795,7 @@ int main(int argc, char *argv[])
 		inputFiles.pop_back();
 	}
 
+	tracefile.trace(END);
 	return 0;
 } // main
 
@@ -796,3 +841,12 @@ int main(int argc, char *argv[])
 // // }
 
 // //****** debugging ends *********//
+
+// HDD_page_size = 100 * MB;
+// numOfPage = totalSize / HDD_page_size;
+// singlePageTransferTime = HDD_page_size / HDD_bandwidth;
+// double total_latency_100MB_HDD = numOfPage * (HDD_latency + singlePageTransferTime);
+
+// file << "latency: " << numOfPage * HDD_latency << "ms;  ";
+// file << "transfer time: " << static_cast<double>(numOfPage) * singlePageTransferTime << "ms;  ";
+// file << "total " << total_latency_100MB_HDD << "ms\n";
