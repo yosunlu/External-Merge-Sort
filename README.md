@@ -25,7 +25,7 @@
   - use CRC-32 (Cyclic Redundancy Check 32), a checksum algorithm
 - Graceful degradation:
   - for data size that exceeds only 25% of memory or SSD, lower I/Os by only spilling that extra size of data to the next level
-  - For 125MB total data size, we output 25MB of data to SSD, then input and sort the exeeding 25MB. The fan-in for DRAM mergesort is 125; the first 100 buckets each has 750KB/250KB of data in DRAM/SSD, while the last 25 buckets each has 1MB in DRAM. With this technique, we lowered 50% of total I/O (500 MB -> 250MB)
+  - For 125MB total data size, we first sort 100MB, then output 25MB of data to SSD. Next, we input and sort the exeeding 25MB. The fan-in for DRAM mergesort is 125; the first 100 buckets each has 750KB/250KB of data in DRAM/SSD, while the last 25 buckets each has 1MB in DRAM. With this technique, we lowered 50% of total I/O (500 MB -> 250MB)
 
 # Project's state
 
