@@ -13,14 +13,13 @@
 - Tournament trees + Offset-value coding:
   - Leverages tree-of-losers tress; the combination of this and OVC enables the most efficient sort algorithms for large records
 - Minimum count of row & column comparisons
-  - enabled by Offset-value coding
+  - enabled by offset-value coding
 - Device-optimized page sizes
   - carfully selected different page sizes for different stages to utilize bandwidths and minimize latency
 - Spilling memory to SSD + Spilling from SSD to disk
   - used for external mergesort
 - Beyond one merge step
   - use quicksort for in-place sorting; use external mergesort for merging from SSD -> DRAM -> HDD and HDD -> DRAM -> HDD
-- Optimized merge patterns
 - Verifying - sets of rows & values + sort order
   - use CRC-32 (Cyclic Redundancy Check 32), a checksum algorithm
 - Graceful degradation:
