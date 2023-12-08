@@ -16,6 +16,7 @@
 #include <unistd.h>
 #include <vector>
 #include "TraceFile.h"
+#include <dirent.h>
 
 // long numOfRecord = 0;
 // long record_size = 0;
@@ -34,6 +35,72 @@ void closeInputFiles(std::vector<std::ifstream *> &inputFiles)
 
 	// Clear the vector after closing files
 	inputFiles.clear();
+}
+
+// Function to delete all files in a directory
+void deleteFilesInDirectory(const char *directoryName)
+{
+	DIR *dir = opendir(directoryName);
+	if (dir != nullptr)
+	{
+		struct dirent *entry;
+		while ((entry = readdir(dir)) != nullptr)
+		{
+			const std::string fileName = entry->d_name;
+
+			// Skip deletion of . and ..
+			if (fileName != "." && fileName != "..")
+			{
+				std::string filePath = std::string(directoryName) + "/" + fileName;
+				if (remove(filePath.c_str()) != 0)
+				{
+					std::cerr << "Error deleting file: " << filePath << std::endl;
+				}
+			}
+		}
+		closedir(dir);
+	}
+	else
+	{
+		std::cerr << "Error opening directory." << std::endl;
+	}
+}
+
+// Function to create a directory if it does not exist
+void createDirectory(const char *directoryName, bool ifDeletedAllFiles)
+{
+	struct stat info;
+
+	if (stat(directoryName, &info) != 0)
+	{
+		// Directory does not exist, try to create it
+		int dirCreationResult = mkdir(directoryName, 0777);
+		if (dirCreationResult == 0)
+		{
+			std::cout << directoryName << " created successfully." << std::endl;
+		}
+		else
+		{
+			std::cerr << "Error creating " << directoryName << "." << std::endl;
+		}
+	}
+	else if (info.st_mode & S_IFDIR)
+	{
+		// Directory already exists
+		std::cout << directoryName << " already exists." << std::endl;
+		if (ifDeletedAllFiles)
+		{
+			// Delete all files in the directory
+			deleteFilesInDirectory(directoryName);
+
+			std::cout << "All files in SSD directory deleted." << std::endl;
+		}
+	}
+	else
+	{
+		// Path exists but is not a directory
+		std::cerr << directoryName << "exists but is not a directory." << std::endl;
+	}
 }
 
 int main(int argc, char *argv[])
@@ -80,116 +147,23 @@ int main(int argc, char *argv[])
 
 	// create input directory
 	const char *directoryName = "input";
-	struct stat info;
-
-	// Check if the directory exists
-	if (stat(directoryName, &info) != 0)
-	{
-		// Directory does not exist, try to create it
-		int dirCreationResult = mkdir(directoryName, 0777);
-		if (dirCreationResult == 0)
-		{
-			std::cout << "Input directory created successfully." << std::endl;
-		}
-		else
-		{
-			std::cerr << "Error creating directory." << std::endl;
-		}
-	}
-	else if (info.st_mode & S_IFDIR)
-	{
-		// Directory exists
-		std::cout << "Input Directory already exists." << std::endl;
-	}
-	else
-	{
-		// Path exists but is not a directory
-		std::cerr << "Path exists but is not a directory." << std::endl;
-	}
+	// Check if the directory exists and create if necessary
+	createDirectory(directoryName, false);
 
 	// create SSD directory
 	directoryName = "SSD-10GB";
-
-	// Check if the directory exists
-	if (stat(directoryName, &info) != 0)
-	{
-		// Directory does not exist, try to create it
-		int dirCreationResult = mkdir(directoryName, 0777);
-		if (dirCreationResult == 0)
-		{
-			std::cout << "SSD created successfully." << std::endl;
-		}
-		else
-		{
-			std::cerr << "Error creating SSD." << std::endl;
-		}
-	}
-	else if (info.st_mode & S_IFDIR)
-	{
-		// Directory exists
-		std::cout << "SSD already exists." << std::endl;
-	}
-	else
-	{
-		// Path exists but is not a directory
-		std::cerr << "Path exists but is not a directory." << std::endl;
-	}
+	// Check if the directory exists and create if necessary
+	createDirectory(directoryName, true);
 
 	// create HDD directory
 	directoryName = "HDD";
-
-	// Check if the directory exists
-	if (stat(directoryName, &info) != 0)
-	{
-		// Directory does not exist, try to create it
-		int dirCreationResult = mkdir(directoryName, 0777);
-		if (dirCreationResult == 0)
-		{
-			std::cout << "HDD created successfully." << std::endl;
-		}
-		else
-		{
-			std::cerr << "Error creating HDD." << std::endl;
-		}
-	}
-	else if (info.st_mode & S_IFDIR)
-	{
-		// Directory exists
-		std::cout << "HDD already exists." << std::endl;
-	}
-	else
-	{
-		// Path exists but is not a directory
-		std::cerr << "Path exists but is not a directory." << std::endl;
-	}
+	// Check if the directory exists and create if necessary
+	createDirectory(directoryName, true);
 
 	// create output directory
 	directoryName = "output";
-
-	// Check if the directory exists
-	if (stat(directoryName, &info) != 0)
-	{
-		// Directory does not exist, try to create it
-		int dirCreationResult = mkdir(directoryName, 0777);
-		if (dirCreationResult == 0)
-		{
-			std::cout << "output created successfully." << std::endl;
-		}
-		else
-		{
-			std::cerr << "Error creating output." << std::endl;
-		}
-	}
-	else if (info.st_mode & S_IFDIR)
-	{
-		// Directory exists
-		std::cout << "output already exists." << std::endl;
-	}
-	else
-	{
-		// Path exists but is not a directory
-		std::cerr << "Path exists but is not a directory." << std::endl;
-	}
+	// Check if the directory exists and create if necessary
+	createDirectory(directoryName, true);
 
 	// 1MB number of record
 	long long numOfRec1MB = MB / record_size;
@@ -386,9 +360,24 @@ int main(int argc, char *argv[])
 
 		// clear the 10GB sorted input files in SSD
 		closeInputFiles(inputFiles);
-		for (int i = 0; i < numOf10GBs; ++i)
+		// for (int i = 0; i < numOf10GBs; ++i)
+		// {
+		// 	delete inputFiles[i];
+		// 	inputFiles.pop_back();
+		// }
+
+		// after outputting the 120GB sorted file to output, clear the HDD
+		for (int fileCount = 0; fileCount < numOf10GBs; ++fileCount)
 		{
-			delete inputFiles[i];
+			std::stringstream filename;
+			filename << "HDD/output_10GB_" << fileCount << ".txt";
+
+			// Convert the stringstream to a string and then to a path
+			std::string file_to_delete = filename.str();
+
+			if (std::remove(file_to_delete.c_str()) != 0)
+				perror("Error deleting file");
+			delete inputFiles[fileCount];
 			inputFiles.pop_back();
 		}
 	}
@@ -409,7 +398,6 @@ int main(int argc, char *argv[])
 		// For 50 byte record: 1GB is 20,000,000 records
 		int numOfGBs = numRecord_leftOverOf10GB / numOfRec1GB; // 3
 		int numOf100MBruns = numOfGBs * 10;
-		std::cout << "numOf100MBruns:" << numOf100MBruns << std::endl;
 		// each iteration will create a sorted numOf100MBruns file to SSD
 		// when the for loop ends, there will be numOf100MBruns * 100MB files in SSD
 		for (int i = 0; i < numOf100MBruns; i++) // numOfGBs * 10 * 100MB dataRecords
@@ -426,7 +414,6 @@ int main(int argc, char *argv[])
 				delete plan;
 			}
 
-			std::cout << "---------- debug 12GB 1----------" << std::endl;
 			// merge sort the 100MB data created in DRAM, and output to SSD
 			Plan *const plan = new SortPlan(new ScanPlan(numOfRec100MB), RUN_PHASE_2, inputFiles, i, 0); // 100000 records is 100MB
 			Iterator *const it = plan->init();
@@ -440,11 +427,7 @@ int main(int argc, char *argv[])
 			dataRecords.clear();
 			delete it;
 			delete plan;
-
-			std::cout << "---------- debug 12GB 2----------" << std::endl;
 		}
-
-		std::cout << "---------- debug 12GB 3----------" << std::endl;
 
 		// external sort phase 1
 		// merge 100 * 100MB on SSD to a 10GB on HDD
@@ -526,9 +509,24 @@ int main(int argc, char *argv[])
 
 		// delete the 10GB files in SSD
 		closeInputFiles(inputFiles);
-		for (int i = 0; i < numOf10GBs + 1; ++i)
+		// for (int i = 0; i < numOf10GBs + 1; ++i)
+		// {
+		// 	delete inputFiles[i];
+		// 	inputFiles.pop_back();
+		// }
+
+		// after outputting the 12GB sorted file to output, clear the HDD
+		for (int fileCount = 0; fileCount < numOf10GBs + 1; ++fileCount)
 		{
-			delete inputFiles[i];
+			std::stringstream filename;
+			filename << "HDD/output_10GB_" << fileCount << ".txt";
+
+			// Convert the stringstream to a string and then to a path
+			std::string file_to_delete = filename.str();
+
+			if (std::remove(file_to_delete.c_str()) != 0)
+				perror("Error deleting file");
+			delete inputFiles[fileCount];
 			inputFiles.pop_back();
 		}
 	}
