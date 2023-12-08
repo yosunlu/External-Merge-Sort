@@ -2,27 +2,27 @@
 
 Plan::Plan ()
 {
-	TRACE (true);
+	// TRACE (true);
 } // Plan::Plan
 
 Plan::~Plan ()
 {
-	TRACE (true);
+	// TRACE (true);
 } // Plan::~Plan
 
 Iterator::Iterator () : _count (0)
 {
-	TRACE (true);
+	// TRACE (true);
 } // Iterator::Iterator
 
 Iterator::~Iterator ()
 {
-	TRACE (true);
+	// TRACE (true);
 } // Iterator::~Iterator
 
 void Iterator::run ()
 {
-	TRACE (true);
+	// TRACE (true);
 
 	while (next ())  ++ _count;
 

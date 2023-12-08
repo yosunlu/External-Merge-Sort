@@ -5,28 +5,28 @@
 #define REC_SIZE 1000
 ScanPlan::ScanPlan (RowCount const count) : _count (count)
 {
-	TRACE(true);
+	// TRACE(true);
 } // ScanPlan::ScanPlan
 
 ScanPlan::~ScanPlan()
 {
-	TRACE(true);
+	// TRACE(true);
 } // ScanPlan::~ScanPlan
 
 Iterator *ScanPlan::init() const
 {
-	TRACE(true);
+	// TRACE(true);
 	return new ScanIterator(this);
 } // ScanPlan::init
 
 ScanIterator::ScanIterator(ScanPlan const *const plan) : _plan(plan), _count(0)
 {
-	TRACE(true);
+	// TRACE(true);
 } // ScanIterator::ScanIterator
 
 ScanIterator::~ScanIterator()
 {
-	TRACE(true);
+	// TRACE(true);
 	traceprintf("produced %lu of %lu rows\n",
 				(unsigned long)(_count),
 				(unsigned long)(_plan->_count));
