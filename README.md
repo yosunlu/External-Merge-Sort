@@ -11,20 +11,21 @@
 - Quicksort + Cache-size mini runs:
   - use quick sort for cache size (1MB) runs becacues quicksort is in-place
 - Tournament trees + Offset-value coding:
-  - enables the most efficient sort algorithms for large records
+  - Leverages tree-of-losers tress; the combination of this and OVC enables the most efficient sort algorithms for large records
 - Minimum count of row & column comparisons
   - enabled by Offset-value coding
 - Device-optimized page sizes
   - carfully selected different page sizes for different stages to utilize bandwidths and minimize latency
 - Spilling memory to SSD + Spilling from SSD to disk
   - used for external mergesort
-- Graceful degradation:
-  - for data size that exceeds only 25% of memory or SSD, lower I/Os by only spilling that extra size of data to the next level
 - Beyond one merge step
   - use quicksort for in-place sorting; use external mergesort for merging from SSD -> DRAM -> HDD and HDD -> DRAM -> HDD
 - Optimized merge patterns
 - Verifying - sets of rows & values + sort order
   - use CRC-32 (Cyclic Redundancy Check 32), a checksum algorithm
+- Graceful degradation:
+  - for data size that exceeds only 25% of memory or SSD, lower I/Os by only spilling that extra size of data to the next level
+  - For 125MB total data size, we output 25MB of data to SSD, then input and sort the exeeding 25MB. The fan-in for DRAM mergesort is 125; the first 100 buckets each has 750KB/250KB of data in DRAM/SSD, while the last 25 buckets each has 1MB in DRAM. With this technique, we lowered 50% of total I/O (500 MB -> 250MB)
 
 # Project's state
 
