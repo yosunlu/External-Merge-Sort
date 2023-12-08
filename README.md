@@ -9,13 +9,13 @@
 # Techniques implemented and reasons
 
 - Quicksort + Cache-size mini runs:
-  - use quick sort for cache size (1MB) runs becacues quicksort is in-place
+  - use quick sort for cache size (1MB) runs since quicksort is in-place
 - Tournament trees + Offset-value coding:
-  - Leverages tree-of-losers tress; the combination of this and OVC enables the most efficient sort algorithms for large records
+  - the combination of tree-of-losers and OVC enables the most efficient sort algorithms for large records
 - Minimum count of row & column comparisons
   - enabled by offset-value coding
 - Device-optimized page sizes
-  - carfully selected different page sizes for different stages to utilize bandwidths and minimize latency
+  - carefully selected different page sizes for different stages to utilize bandwidths and minimize latency
 - Spilling memory to SSD + Spilling from SSD to disk
   - used for external mergesort
 - Beyond one merge step
