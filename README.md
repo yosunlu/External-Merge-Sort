@@ -9,20 +9,22 @@
 # Techniques implemented and reasons
 
 - Quicksort + Cache-size mini runs:
-  use quick sort for cache size (1MB) runs becacues quicksort is in-place
+  - use quick sort for cache size (1MB) runs becacues quicksort is in-place
 - Tournament trees + Offset-value coding:
-  enable the most efficient sort algorithms for large records
+  - enable the most efficient sort algorithms for large records
 - Minimum count of row & column comparisons
-  enabled by Offset-value coding
+  - enabled by Offset-value coding
 - Device-optimized page sizes
-- Spilling memory-to-SSD + Spilling from SSD to disk
-  use for external mergesort
-- Graceful degradation
+  - carfully selected different page sizes for different stages to utilize bandwidths and minimize latency
+- Spilling memory to SSD + Spilling from SSD to disk
+  - used for external mergesort
+- Graceful degradation:
+  - for data size that exceeds only 25% of memory or SSD, lower I/Os by only spilling that extra data to the next level
 - Beyond one merge step
-  use quicksort for in-place sorting; use external mergesort for merging from SSD -> DRAM -> HDD and HDD -> DRAM -> HDD
+  - use quicksort for in-place sorting; use external mergesort for merging from SSD -> DRAM -> HDD and HDD -> DRAM -> HDD
 - Optimized merge patterns
 - Verifying: sets of rows & values + sort order
-  use CRC-32 (Cyclic Redundancy Check 32) a checksum algorithm to verify the values and sort order
+  - use CRC-32 (Cyclic Redundancy Check 32), a checksum algorithm
 
 # Project's state
 
@@ -34,7 +36,7 @@
 - YUSHAN LU: external merge sort, variable size record, tracfile, README
 - YUNTZU CHEN:
 
-And README file that includes:
+README file that includes:
 
     Each group member's names and student IDs
 
