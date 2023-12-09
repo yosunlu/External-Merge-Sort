@@ -27,7 +27,7 @@ MSG=no message
 #
 all: Test.exe verify.exe
 Test.exe : Makefile $(OBJS)
-	g++ $(CPPFLAGS) -o Test.exe $(OBJS)
+	g++ $(CPPFLAGS) -o sort $(OBJS)
 
 verify.exe: verify.cpp
 	g++ $(CPPFLAGS) -o $@ $< -lz
