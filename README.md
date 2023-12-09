@@ -34,6 +34,7 @@
 # Project's state
 
 - complete and can be tested with default specification
+- Usage of verification: `./verify.exe -i input/input.txt -o output/final_output.txt -s [record size]`
 
 # Each group member's contributions
 
