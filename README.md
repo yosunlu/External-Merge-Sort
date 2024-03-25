@@ -1,5 +1,5 @@
 # Intro
-This is s course work from UW-Madison cs764 - Advanced Topics in Datrabase management. This project happend to be quite challenging, and it involed several techniques to fufill the requirements.
+This is a course work from UW-Madison cs764 - Advanced Topics in Datrabase management. This project happend to be quite challenging, and it involed several techniques to fufill the requirements.
 
 # Goal
 - The goal is to implement an external merge sort. We were asked to emulate SSD, HDD, CPU, and DRAM. We were also asked to generate 120 GB of data, which consists of 120 millions of 1KB entries, in the form of random numbers and letters. The implemented merge sort has to sort these 120 millons correctly and time-efficient
