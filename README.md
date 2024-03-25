@@ -1,12 +1,16 @@
-# CS764
+# Intro
+This is s course work from UW-Madison cs764 - Advanced Topics in Datrabase management. This project happend to be quite challenging, and it involed several techniques to fufill the requirements.
 
-# Group members
+# Goal
+- The goal is to implement an external merge sort. We were asked to emulate SSD, HDD, CPU, and DRAM. We were also asked to generate 120 GB of data, which consists of 120 millions of 1KB entries, in the form of random numbers and letters. The implemented merge sort has to sort these 120 millons correctly and time-efficient
+- Constraints are the hardware:
+  - 1 CPU
+  - 1 MB cache
+  - 100 MB DRAM
+  - 10 GB SSD
+  - HDD with unlimited storage   
 
-- HUI-DAN CHANG 9084661785
-- YUSHAN LU 9084761288
-- YUNTZU CHEN 9083898305
-
-# Techniques implemented/reasons/corresponding source files
+# Techniques implemented / Reasonings / Corresponding source files
 
 - Quicksort + Cache-size mini runs
   - use quick sort for cache size (1MB) runs since quicksort is in-place
@@ -31,13 +35,5 @@
   - For 125MB total data size, we first sort 100MB, then output 25MB of data to SSD. Next, we input and sort the exeeding 25MB. The fan-in for DRAM mergesort is 125; the first 100 buckets each has 750KB/250KB of data in DRAM/SSD, while the last 25 buckets each has 1MB in DRAM. With this technique, we lowered 50% of total I/O (500 MB -> 250MB)
   - Test.cpp:462\~530, 613\~694, Sort.cpp:117\~310, 390\~691
 
-# Project's state
-
-- complete and can be tested with default specification
-- Usage of verification: `./verify.exe -i input/input.txt -o output/final_output.txt -s [record size]`
-
-# Each group member's contributions
-
-- HUI-DAN CHANG: run generation, tree-of-losers, OVC, external merge sort, verify, variable size/data record, graceful degradation, tracefile, commenting README
-- YUSHAN LU: run generation, tree-of-losers, OVC, external merge sort, verify, variable size/data record, graceful degradation, tracefile, commenting README
-- YUNTZU CHEN: run generation, tree-of-losers, OVC, external merge sort, verify, variable size/data record, graceful degradation, tracefile, commenting README
+# Verificaiton
+- `./verify.exe -i input/input.txt -o output/final_output.txt -s [record size]`
